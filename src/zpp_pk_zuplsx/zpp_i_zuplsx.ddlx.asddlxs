@@ -1,0 +1,105 @@
+@Metadata.layer: #CORE
+
+@UI.presentationVariant: [ { sortOrder: [ { by: 'PstDate', direction: #DESC } ],
+                             visualizations: [ { type: #AS_LINEITEM } ] } ]
+
+annotate entity ZPP_I_ZUPLSX with
+
+{
+  //  @EndUserText.label: 'File Name'
+  //  @UI.lineItem: [ { position: 10, label: 'Document Number' } ]
+  //  @UI.selectionField: [ { position: 10 } ]
+  @UI.hidden: true
+  IdDoc;
+
+  @Consumption.valueHelpDefinition: [ { entity: { name: 'I_ProductionOrderStdVH', element: 'ProductionOrder' },
+                                        useForValidation: true,
+                                        additionalBinding: [ { element: 'ProductionOrderType',
+                                                               localElement: 'ProductionOrderType' },
+                                                             { element: 'ProductionPlant',
+                                                               localElement: 'ProductionPlant' } ] } ]
+  @EndUserText.label: 'Production Order'
+  @UI.lineItem: [ { position: 20, label: 'Production Order' } ]
+  @UI.selectionField: [ { position: 20 } ]
+  ProductionOrder;
+
+  @Consumption.valueHelpDefinition: [ { entity: { name: 'I_SalesOrderStdVH', element: 'SalesOrder' },
+                                        useForValidation: true } ]
+  @EndUserText.label: 'Sales Order'
+  @UI.lineItem: [ { position: 30, label: 'Sales Order' } ]
+  SalesOrder;
+
+  @EndUserText.label: 'Sales Order Item'
+  @UI.lineItem: [ { position: 40, label: 'Sales Order Item' } ]
+  SalesOrderItem;
+
+  @Consumption.valueHelpDefinition: [ { entity: { name: 'ZPP_I_PRODUCT_SVH', element: 'Product' },
+                                        useForValidation: true } ]
+  @EndUserText.label: 'Material'
+  @UI.lineItem: [ { position: 50, label: 'Material' } ]
+  @UI.selectionField: [ { position: 50 } ]
+  Material;
+
+  @Consumption.filter.hidden: true
+  @EndUserText.label: 'Material Description'
+  @UI.lineItem: [ { position: 60, label: 'Material Description' } ]
+  ProductName;
+
+  @Consumption.valueHelpDefinition: [ { entity: { name: 'I_PlantStdVH', element: 'Plant' },
+                                        useForValidation: true } ]
+  @EndUserText.label: 'Plant'
+  @UI.lineItem: [ { position: 70, label: 'Plant' } ]
+  @UI.selectionField: [ { position: 70 } ]
+  ProductionPlant;
+
+
+  @Consumption.valueHelpDefinition: [ { entity: { name: 'ZPP_I_ProductionOrderType_SVH', element: 'ProductionOrderType' },
+                                        useForValidation: true } ]
+  @EndUserText.label: 'Production Order Type'
+  @UI.lineItem: [ { position: 80, label: 'Production Order Type' } ]
+  @UI.selectionField: [ { position: 80 } ]
+  ProductionOrderType;
+
+  @EndUserText.label: 'Production Version'
+  @UI.lineItem: [ { position: 90, label: 'Production Version' } ]
+  @UI.selectionField: [ { position: 90 } ]
+  ProductionVersion;
+
+  @Consumption.filter.hidden: true
+  @EndUserText.label: 'Total Quantity'
+  @UI.lineItem: [ { position: 100, label: 'Total Quantity' } ]
+  TotalQty;
+
+  @Consumption.filter.hidden: true
+  @EndUserText.label: 'ĐVT'
+  @UI.lineItem: [ { position: 101, label: 'ĐVT' } ]
+  BaseUnit;
+
+  @Consumption.filter.selectionType: #INTERVAL
+  @EndUserText.label: 'Start Date'
+  @UI.lineItem: [ { position: 110, label: 'Start Date' } ]
+  @UI.selectionField: [ { position: 110 } ]
+  StartDate;
+
+  @Consumption.filter.selectionType: #INTERVAL
+  @EndUserText.label: 'End Date'
+  @UI.lineItem: [ { position: 120, label: 'End Date' } ]
+  @UI.selectionField: [ { position: 120 } ]
+  EndDate;
+
+  @EndUserText.label: 'File Name'
+  @UI.lineItem: [ { position: 130, label: 'File Name' } ]
+  @UI.selectionField: [ { position: 130 } ]
+  Filename;
+
+  @Consumption.filter.selectionType: #INTERVAL
+  @EndUserText.label: 'Posting Date'
+  @UI.lineItem: [ { position: 140, label: 'Posting Date' } ]
+  @UI.selectionField: [ { position: 140 } ]
+  PstDate;
+
+  @Consumption.filter.hidden: true
+  @EndUserText.label: 'Posted By'
+  @UI.lineItem: [ { position: 150, label: 'Posted By' } ]
+  PstUser;
+}

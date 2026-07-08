@@ -1,0 +1,12 @@
+unmanaged implementation in class zbp_fi_i_dis_up unique;
+strict ( 2 );
+
+define behavior for ZFI_I_DIS_UP alias Log
+lock master
+authorization master ( instance )
+{
+  // Action cũ (V4) - GIỮ NGUYÊN
+  static action uploadFromExcel parameter ZD_FIDocUploadParam
+                                result [0..*] ZD_FIDocUploadResult;
+
+}

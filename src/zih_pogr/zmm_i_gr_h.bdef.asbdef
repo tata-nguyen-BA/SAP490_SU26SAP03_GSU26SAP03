@@ -1,0 +1,38 @@
+managed implementation in class zmm_cl_bp_gr unique;
+strict(2);
+
+define behavior for zmm_i_gr_h alias GrUpload
+  persistent table zmm_tb_gr_h
+  lock master
+  authorization master (instance)
+  etag master LastChangedAt
+{
+
+  static action uploadExcel
+    parameter  ZD_GRUPLOADPARAM
+    result [1] ZD_GR_UPLOAD_RESULT;
+
+  action (features: instance) retryPost;
+
+  field (readonly)
+    GrNumber, BatchId, Status, Message,
+    MaterialDocument, MaterialDocumentYear,
+    StatusCriticality, LogHandle,
+    CreatedAt, CreatedBy, LastChangedAt, LastChangedBy, LocalLastChangedAt;
+  association _items;
+}
+
+define behavior for zmm_i_gr_i alias GrItem
+  persistent table zmm_tb_gr_i
+  lock dependent by _header
+  authorization dependent by _header
+  etag dependent by _header
+{
+  field (readonly)
+    GrNumber, Item, PoNumber, PoItem, Material, Plant,
+    ReceiveQty, Unit, StorageLocation, OrderQty, OpenQty,
+    Status, StatusCriticality, Message,
+    MaterialDocument, MaterialDocumentItem;
+
+  association _header;
+}

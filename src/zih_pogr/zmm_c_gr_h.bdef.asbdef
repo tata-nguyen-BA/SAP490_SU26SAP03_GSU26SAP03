@@ -1,0 +1,14 @@
+projection;
+strict(2);
+
+define behavior for zmm_c_gr_h alias GrUpload
+{
+  use action uploadExcel;
+  use action retryPost;
+  use association _items { }
+}
+
+define behavior for zmm_c_gr_i alias GrItem
+{
+  use association _header;
+}

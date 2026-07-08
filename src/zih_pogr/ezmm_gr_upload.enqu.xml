@@ -1,0 +1,43 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<abapGit version="v1.0.0" serializer="LCL_OBJECT_ENQU" serializer_version="v1.0.0">
+ <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
+  <asx:values>
+   <DD25V>
+    <VIEWNAME>EZMM_GR_UPLOAD</VIEWNAME>
+    <DDLANGUAGE>E</DDLANGUAGE>
+    <AGGTYPE>E</AGGTYPE>
+    <ROOTTAB>ZMM_TB_GR_H</ROOTTAB>
+    <DDTEXT>Lock for GR Upload Staging</DDTEXT>
+   </DD25V>
+   <DD26E_TABLE>
+    <DD26E>
+     <VIEWNAME>EZMM_GR_UPLOAD</VIEWNAME>
+     <TABNAME>ZMM_TB_GR_H</TABNAME>
+     <TABPOS>0001</TABPOS>
+     <FORTABNAME>ZMM_TB_GR_H</FORTABNAME>
+     <ENQMODE>E</ENQMODE>
+    </DD26E>
+   </DD26E_TABLE>
+   <DD27P_TABLE>
+    <DD27P>
+     <VIEWNAME>EZMM_GR_UPLOAD</VIEWNAME>
+     <OBJPOS>0001</OBJPOS>
+     <VIEWFIELD>CLIENT</VIEWFIELD>
+     <TABNAME>ZMM_TB_GR_H</TABNAME>
+     <FIELDNAME>CLIENT</FIELDNAME>
+     <KEYFLAG>X</KEYFLAG>
+     <ENQMODE>E</ENQMODE>
+    </DD27P>
+    <DD27P>
+     <VIEWNAME>EZMM_GR_UPLOAD</VIEWNAME>
+     <OBJPOS>0002</OBJPOS>
+     <VIEWFIELD>GR_NUMBER</VIEWFIELD>
+     <TABNAME>ZMM_TB_GR_H</TABNAME>
+     <FIELDNAME>GR_NUMBER</FIELDNAME>
+     <KEYFLAG>X</KEYFLAG>
+     <ENQMODE>E</ENQMODE>
+    </DD27P>
+   </DD27P_TABLE>
+  </asx:values>
+ </asx:abap>
+</abapGit>

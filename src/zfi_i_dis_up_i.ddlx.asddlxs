@@ -1,0 +1,296 @@
+@Metadata.layer: #CORE
+
+@UI.presentationVariant: [ { sortOrder: [ { by: 'id_doc' },
+                                          { by: 'id_line', direction: #ASC } ],
+                             visualizations: [ { type: #AS_LINEITEM } ],
+                             requestAtLeast: [ 'id_doc', 'id_line' ] } ]
+
+annotate entity ZFI_I_DIS_UP_I with
+
+{
+  @UI.facet: [ { id: 'information', label: 'Information', position: 10, type: #COLLECTION },
+               { id: 'headerInfomation',
+                 parentId: 'information',
+                 position: 10,
+                 purpose: #STANDARD,
+                 type: #IDENTIFICATION_REFERENCE } ]
+  @UI.identification: [ { position: 10 } ]
+  @UI.lineItem: [ { position: 10 } ]
+  filename;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 20 } ]
+  id_doc;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 30 } ]
+  id_line;
+
+  @UI.identification: [ { position: 10 } ]
+  @UI.lineItem: [ { position: 31 } ]
+  accountingdocument;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 50 } ]
+  postingkey;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 60 } ]
+  account;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 70 } ]
+  mainassetnumber;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 80 } ]
+  subassetnumber;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 90 } ]
+  specialglaccount;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 100 } ]
+  assettransactiontype;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 110 } ]
+  companycodecurrency;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 120 } ]
+  amountinlocalcurrency;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 130 } ]
+  transactioncurrency;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 140 } ]
+  amountindoumentcurrency;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 150 } ]
+  taxbaseamount;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 151 } ]
+  localtaxbaseamount;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 160 } ]
+  assignment;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 170 } ]
+  businessarea;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 180 } ]
+  costcenter;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 190 } ]
+  profitcenter;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 200 } ]
+  internalorder;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 210 } ]
+  assetvaluedate;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 220 } ]
+  itemtext;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 230 } ]
+  overrideglaccount;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 240 } ]
+  taxcode;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 250 } ]
+  segment;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 260 } ]
+  paymentterms;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 270 } ]
+  paymentblockreason;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 280 } ]
+  paymentmethod;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 290 } ]
+  contractnumber;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 300 } ]
+  contracttype;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 310 } ]
+  housebank;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 320 } ]
+  bankaccountid;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 330 } ]
+  invoicerefnum;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 340 } ]
+  invoicefiscalyear;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 350 } ]
+  invoicereflineitem;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 360 } ]
+  purchasingno;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 370 } ]
+  purchasingitem;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 380 } ]
+  baselinedate;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 390 } ]
+  valuedate;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 400 } ]
+  saleorder;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 410 } ]
+  saleorderitem;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 420 } ]
+  ref1;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 430 } ]
+  ref3;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 440 } ]
+  longtext;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 450 } ]
+  material;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 460 } ]
+  unit;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 470 } ]
+  name1;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 480 } ]
+  name2;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 489 } ]
+  mst;
+  
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 490 } ]
+  city;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 500 } ]
+  country;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 510 } ]
+  vatregno;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 520 } ]
+  quantity;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 530 } ]
+  customer;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 540 } ]
+  supplier;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 560 } ]
+  alternativepayee;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 560 } ]
+  cusgroup;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 570 } ]
+  division;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 580 } ]
+  distributionchannel;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 590 } ]
+  salesoffice;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 600 } ]
+  salesemployee;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 610 } ]
+  salesgroup;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 620 } ]
+  materialgroup;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 630 } ]
+  dongsanpham;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 640 } ]
+  loaihinhsanpham;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 650 } ]
+  product;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 660 } ]
+  materialgrouplevel1;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 670 } ]
+  materialgrouplevel2;
+
+  @UI.identification: [ { position: 10 } ]
+//  @UI.lineItem: [ { position: 680 } ]
+  payer;
+}

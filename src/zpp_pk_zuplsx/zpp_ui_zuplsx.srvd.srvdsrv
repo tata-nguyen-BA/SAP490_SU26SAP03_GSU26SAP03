@@ -1,0 +1,4 @@
+@EndUserText.label: 'PP Order Upload Service'
+define service ZPP_UI_ZUPLSX {
+  expose ZPP_I_ZUPLSX as UploadHistory;
+}

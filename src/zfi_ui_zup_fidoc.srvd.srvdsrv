@@ -1,0 +1,5 @@
+@EndUserText.label: 'Service definition for FI Document Upload'
+define service ZFI_UI_ZUP_FIDOC {
+  expose ZFI_I_DIS_UP as UploadHistory;
+  expose ZFI_I_DIS_UP_I as UploadHistoryItem;
+}

@@ -1,0 +1,6 @@
+@EndUserText.label: 'Upload Analytics Service (FI + PP)'
+define service ZUP_UI_RPT {
+  expose ZUP_C_FIUPLOAD_RPT as FIUploadReport;
+  expose ZUP_C_PPUPLOAD_RPT as PPUploadReport;
+  expose ZUP_C_FIUPLOAD_ITEM as FIUploadItem;
+}

@@ -1,0 +1,5 @@
+@EndUserText.label: 'GR Upload Service'
+define service ZMM_UI_POGR_O4 {
+  expose zmm_c_gr_h as GrUpload;
+  expose zmm_c_gr_i as GrItem;
+}

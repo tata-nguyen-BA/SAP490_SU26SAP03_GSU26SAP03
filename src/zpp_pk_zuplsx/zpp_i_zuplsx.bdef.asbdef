@@ -1,0 +1,11 @@
+unmanaged implementation in class zbp_pp_i_zuplsx unique;
+strict ( 2 );
+
+define behavior for ZPP_I_ZUPLSX alias UploadLog
+lock master
+authorization master ( instance )
+{
+  static action uploadFromExcel
+    parameter ZD_PPOrdUploadParam
+    result [0..*] ZD_PPOrdUploadResult;
+}

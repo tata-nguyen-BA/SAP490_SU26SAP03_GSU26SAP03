@@ -1,0 +1,90 @@
+@Metadata.layer: #CORE
+
+@UI.headerInfo: {
+  typeName:       'GR Upload',
+  typeNamePlural: 'GR Uploads',
+  title:       { type: #STANDARD, value: 'GrNumber' },
+  description: { type: #STANDARD, value: 'Status'   }
+}
+
+
+annotate view zmm_c_gr_h with
+{
+  @UI.facet: [
+    { id:       'GRInfo',
+      type:     #COLLECTION,
+      label:    'GR Information',
+      position: 10 },
+
+    { id:              'GRFields',
+      type:            #FIELDGROUP_REFERENCE,
+      label:           'Header',
+      parentId:        'GRInfo',
+      targetQualifier: 'GRFg',
+      position:        10 },
+
+    { id:              'PostingResult',
+      type:            #FIELDGROUP_REFERENCE,
+      label:           'Posting Result',
+      parentId:        'GRInfo',
+      targetQualifier: 'PostFg',
+      position:        20 },
+
+    { id:            'Items',
+      type:          #LINEITEM_REFERENCE,
+      label:         'Items',
+      position:      20,
+      targetElement: '_items' }
+  ]
+  @UI.lineItem: [
+    { type: #FOR_ACTION, dataAction: 'uploadExcel',
+      label: 'Upload GR Excel', position: 10 },
+    { type: #FOR_ACTION, dataAction: 'retryPost',
+      label: 'Retry', position: 20 },
+    { position: 10, label: 'GR Number' }
+  ]
+  GrNumber;
+
+  @UI.selectionField: [{ position: 20 }]
+  @UI.lineItem:       [{ position: 20, label: 'Batch ID' }]
+  @UI.fieldGroup:     [{ qualifier: 'GRFg', position: 10, label: 'Batch ID' }]
+  BatchId;
+
+  @UI.selectionField: [{ position: 30 }]
+  @UI.lineItem:       [{ position: 30, label: 'Document Date' }]
+  @UI.fieldGroup:     [{ qualifier: 'GRFg', position: 20 }]
+  DocumentDate;
+
+  @UI.fieldGroup:  [{ qualifier: 'GRFg', position: 30 }]
+  MovementType;
+
+  @UI.fieldGroup:  [{ qualifier: 'GRFg', position: 40 }]
+  Testmode;
+
+  @UI.selectionField: [{ position: 10 }]
+  @UI.lineItem:   [{ position: 40, label: 'Status',
+                     criticality: 'StatusCriticality',
+                     criticalityRepresentation: #WITH_ICON }]
+  @UI.fieldGroup: [{ qualifier: 'GRFg', position: 50,
+                     criticality: 'StatusCriticality',
+                     criticalityRepresentation: #WITH_ICON }]
+  Status;
+
+  @UI.fieldGroup:  [{ qualifier: 'GRFg', position: 60 }]
+  Message;
+
+  @UI.lineItem:    [{ position: 50, label: 'Material Document' }]
+  @UI.fieldGroup:  [{ qualifier: 'PostFg', position: 10 }]
+  MaterialDocument;
+
+  @UI.fieldGroup:  [{ qualifier: 'PostFg', position: 20, label: 'Year' }]
+  MaterialDocumentYear;
+
+  @UI.lineItem:    [{ position: 60, label: 'Created By' }]
+  @UI.fieldGroup:  [{ qualifier: 'GRFg', position: 70 }]
+  CreatedBy;
+
+  @UI.lineItem:    [{ position: 70, label: 'Created At' }]
+  @UI.fieldGroup:  [{ qualifier: 'GRFg', position: 80 }]
+  CreatedAt;
+}

@@ -1,0 +1,80 @@
+@Metadata.layer: #CORE
+
+@UI.headerInfo: {
+  typeName:       'GR Item',
+  typeNamePlural: 'GR Items',
+  title:       { type: #STANDARD, value: 'Item' },
+  description: { type: #STANDARD, value: 'PoNumber' }
+}
+
+annotate view zmm_c_gr_i with
+{
+  @UI.facet: [
+    { id:    'ItemInfo',
+      type:  #IDENTIFICATION_REFERENCE,
+      label: 'Item Detail',
+      position: 10 }
+  ]
+
+  @UI.lineItem:       [{ position: 10,  label: 'Item'         }]
+  @UI.identification: [{ position: 10,  label: 'Item'         }]
+  Item;
+
+  @UI.lineItem:       [{ position: 20,  label: 'PO Number'    }]
+  @UI.identification: [{ position: 20,  label: 'PO Number'    }]
+  PoNumber;
+
+  @UI.lineItem:       [{ position: 30,  label: 'PO Item'      }]
+  @UI.identification: [{ position: 30,  label: 'PO Item'      }]
+  PoItem;
+
+  @UI.lineItem:       [{ position: 35,  label: 'Description'  }]
+  @UI.identification: [{ position: 35,  label: 'Description'  }]
+  PoItemText;
+
+  @UI.lineItem:       [{ position: 40,  label: 'Material'     }]
+  @UI.identification: [{ position: 40,  label: 'Material'     }]
+  Material;
+
+  @UI.lineItem:       [{ position: 50,  label: 'Plant'        }]
+  @UI.identification: [{ position: 50,  label: 'Plant'        }]
+  Plant;
+
+  @UI.lineItem:       [{ position: 55,  label: 'Sloc'         }]
+  @UI.identification: [{ position: 55,  label: 'Sloc'         }]
+  StorageLocation;
+
+  @UI.lineItem:       [{ position: 60,  label: 'Receive Qty'  }]
+  @UI.identification: [{ position: 60,  label: 'Receive Qty'  }]
+  ReceiveQty;
+
+  @UI.lineItem:       [{ position: 65,  label: 'UoM'          }]
+  @UI.identification: [{ position: 65,  label: 'UoM'          }]
+  Unit;
+
+  @UI.lineItem:       [{ position: 70,  label: 'Order Qty'    }]
+  @UI.identification: [{ position: 70,  label: 'Order Qty'    }]
+  OrderQty;
+
+  @UI.lineItem:       [{ position: 75,  label: 'Open Qty'     }]
+  @UI.identification: [{ position: 75,  label: 'Open Qty'     }]
+  OpenQty;
+
+  @UI.lineItem:       [{ position: 80,  label: 'Status',
+    criticality: 'StatusCriticality', criticalityRepresentation: #WITH_ICON }]
+  @UI.identification: [{ position: 80,  label: 'Status',
+    criticality: 'StatusCriticality', criticalityRepresentation: #WITH_ICON }]
+  Status;
+
+  @UI.lineItem:       [{ position: 90,  label: 'Mat.Doc'      }]
+  @UI.identification: [{ position: 90,  label: 'Mat.Doc'      }]
+  MaterialDocument;
+
+  @UI.lineItem:       [{ position: 95,  label: 'Mat.Doc Item' }]
+  @UI.identification: [{ position: 95,  label: 'Mat.Doc Item' }]
+  MaterialDocumentItem;
+
+  @UI.lineItem:       [{ position: 100, label: 'Message'      }]
+  @UI.identification: [{ position: 100, label: 'Message'      }]
+  Message;
+}

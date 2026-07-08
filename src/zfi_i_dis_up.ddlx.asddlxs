@@ -1,0 +1,44 @@
+@Metadata.layer: #CORE
+
+@UI.headerInfo: { typeName: 'Upload FI Document', typeNamePlural: 'Upload chứng từ kế toán' }
+
+@UI.presentationVariant: [ { sortOrder: [ { by: 'pst_date', direction: #DESC } ],
+                             requestAtLeast: [ 'pst_date' ] } ]
+
+annotate entity ZFI_I_DIS_UP with
+
+{
+  @UI.facet: [ { id: 'information', label: 'Information', position: 10, type: #COLLECTION },
+               { id: 'headerInfomation',
+                 parentId: 'information',
+                 position: 10,
+                 purpose: #STANDARD,
+                 type: #IDENTIFICATION_REFERENCE },
+               { id: 'itemList',
+                 label: 'Item List',
+                 position: 20,
+                 purpose: #STANDARD,
+                 targetElement: '_Item',
+                 type: #LINEITEM_REFERENCE } ]
+  @UI.identification: [ { position: 10 } ]
+  @UI.lineItem: [ { position: 10 } ]
+  @UI.selectionField: [ { position: 10 } ]
+  filename;
+
+  @Consumption.valueHelpDefinition: [ { entity: { name: 'I_BusinessUserBasic', element: 'UserID' } } ]
+  @UI.identification: [ { position: 20 } ]
+  @UI.lineItem: [ { position: 20 } ]
+  @UI.selectionField: [ { position: 20 } ]
+  pst_user;
+
+  @Consumption.filter.selectionType: #INTERVAL
+  @UI.identification: [ { position: 30 } ]
+  @UI.lineItem: [ { position: 30 } ]
+  @UI.selectionField: [ { position: 30 } ]
+  pst_date;
+
+  @UI.identification: [ { position: 40 } ]
+  @UI.lineItem: [ { position: 40 } ]
+  @UI.selectionField: [ { position: 40 } ]
+  UserDescription;
+}
