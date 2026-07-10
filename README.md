@@ -1,18 +1,30 @@
-# SAP BTP Integration Hub — ZPK_GSU26SAP03
+# SAP BTP Integration Hub — Backend (ZPK_GSU26SAP03)
 
-> **Đồ án tốt nghiệp** — Xây dựng nền tảng tích hợp tải lên chứng từ hàng loạt từ Excel lên SAP S/4HANA thông qua giao diện Fiori trên SAP Business Technology Platform.
+> **Đồ án tốt nghiệp** — ABAP Backend cho hệ thống tích hợp tải lên chứng từ SAP hàng loạt từ Excel, xây dựng trên SAP S/4HANA với kiến trúc ABAP RAP + OData V4.
+
+[![BE Repo](https://img.shields.io/badge/repo-Backend%20ABAP-0553CE?logo=sap)](https://github.com/tata-nguyen-BA/SAP490_SU26SAP03_GSU26SAP03)
+[![FE Repo](https://img.shields.io/badge/repo-Frontend%20Fiori-2563EB?logo=sap)](https://github.com/tata-nguyen-BA/SAP490_SU26SAP03_GSU26SAP03_FE)
+
+---
+
+## Liên kết Repository
+
+| Repo | Mô tả | Link |
+|------|-------|------|
+| **Backend (repo này)** | ABAP objects — ZFI, ZPP, ZIH_POGR | [SAP490_SU26SAP03_GSU26SAP03](https://github.com/tata-nguyen-BA/SAP490_SU26SAP03_GSU26SAP03) |
+| **Frontend** | SAP UI5 Fiori apps — zfi_pk_zup, zup_rpt | [SAP490_SU26SAP03_GSU26SAP03_FE](https://github.com/tata-nguyen-BA/SAP490_SU26SAP03_GSU26SAP03_FE) |
 
 ---
 
 ## Tổng quan
 
-Hệ thống cho phép người dùng kế toán / sản xuất / kho vận tải lên hàng loạt chứng từ SAP từ file Excel mà không cần vào transaction SAP GUI, gồm 3 module nghiệp vụ:
+Backend ABAP cung cấp 3 OData V4 service cho phép tải lên chứng từ SAP hàng loạt:
 
-| Module | Chức năng | OData Service |
-|--------|-----------|---------------|
-| **ZFI** | Upload Chứng từ Kế toán (FI Journal Entry) | `ZFI_UI_ZUP_FIDOC_O4` |
-| **ZPP** | Upload Lệnh Sản xuất (PP Production Order) | `ZPP_UI_ZUPLSX_O4` |
-| **ZIH** | Upload Phiếu Nhập kho theo PO (MM Goods Receipt) | `ZMM_UI_POGR_O4` |
+| Module | Chức năng | OData Service | BAPI |
+|--------|-----------|---------------|------|
+| **ZFI** | Upload Chứng từ Kế toán (FI Journal Entry) | `ZFI_UI_ZUP_FIDOC_O4` | `BAPI_ACC_DOCUMENT_POST` |
+| **ZPP** | Upload Lệnh Sản xuất (PP Production Order) | `ZPP_UI_ZUPLSX_O4` | `BAPI_PRODORD_CREATE` |
+| **ZIH** | Upload Phiếu Nhập kho theo PO (MM Goods Receipt) | `ZMM_UI_POGR_O4` | `BAPI_GOODSMVT_CREATE` + APJ |
 
 ---
 
@@ -21,23 +33,33 @@ Hệ thống cho phép người dùng kế toán / sản xuất / kho vận tả
 ```
 ┌───────────────────────────────────────────────────────┐
 │              SAP Business Technology Platform          │
-│                                                       │
-│  ┌─────────────────┐      ┌────────────────────────┐  │
-│  │  zfi_pk_zup      │      │  zup_rpt               │  │
-│  │  Upload Hub      │      │  Analytics Hub         │  │
-│  │  FI · PP · GR   │      │  FI · PP · GR Reports  │  │
-│  └────────┬─────────┘      └──────────┬─────────────┘  │
-│           │      OData V4 / Destination│               │
-└───────────┼──────────────────────────┼───────────────┘
-            │   BTP Connectivity        │
-┌───────────┼──────────────────────────┼───────────────┐
-│           ▼   SAP S/4HANA On-Premise ▼               │
-│   Package ZPK_GSU26SAP03                             │
-│   ├── ZFI_PK_FIDOC_LEGACY  →  BAPI_ACC_DOCUMENT_POST│
-│   ├── ZPP_PK_ZUPLSX         →  BAPI_PRODORD_CREATE  │
-│   └── ZIH_POGR              →  BAPI_GOODSMVT_CREATE │
-│                                  + APJ Background Job│
-└──────────────────────────────────────────────────────┘
+│  zfi_pk_zup (Upload Hub)  │  zup_rpt (Analytics Hub)  │
+│           OData V4 / BTP Connectivity Destination      │
+└───────────────────────────────────────────────────────┘
+                           │
+┌──────────────────────────▼────────────────────────────┐
+│              SAP S/4HANA On-Premise                    │
+│              Package ZPK_GSU26SAP03                    │
+│                                                        │
+│  ZFI_PK_FIDOC_LEGACY                                   │
+│  ├── ZFI_CL_FIDOC_SRV      parse + validate + SOAP    │
+│  ├── ZFI_I/C_UPLOAD_LOG    CDS Interface + Projection  │
+│  ├── ZBP_FI_I_DIS_UP       RAP Behavior Implementation │
+│  └── ZFI_UI_ZUP_FIDOC_O4   OData V4 Service Binding   │
+│                                                        │
+│  ZPP_PK_ZUPLSX                                         │
+│  ├── ZPP_CL_ZUPLSX_SRV     parse + validate + BAPI    │
+│  ├── ZPP_I/C_ZUPLSX        CDS Interface + Projection  │
+│  ├── ZBP_PP_I_ZUPLSX       RAP Behavior Implementation │
+│  └── ZPP_UI_ZUPLSX_O4      OData V4 Service Binding   │
+│                                                        │
+│  ZIH_POGR  (32 objects mới)                            │
+│  ├── ZMM_CL_GR_SRV         parse + validate + APJ     │
+│  ├── ZMM_I/C_GR_H/I        CDS Interface + Projection  │
+│  ├── ZMM_CL_BP_GR          RAP Behavior Implementation │
+│  ├── ZMM_UI_POGR_O4        OData V4 Service Binding   │
+│  └── ZMM_CL_JOB_POST_GR    APJ Background Job         │
+└────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -45,135 +67,74 @@ Hệ thống cho phép người dùng kế toán / sản xuất / kho vận tả
 ## Cấu trúc Repository
 
 ```
-📦 sap-btp-integration-hub/
- ├── backend/
- │   ├── ZFI_PK_FIDOC_LEGACY/     # ABAP objects — FI Upload
- │   ├── ZPP_PK_ZUPLSX/           # ABAP objects — PP Upload
- │   └── ZIH_POGR/                # ABAP objects — GR Upload (32 objects)
- ├── frontend/
- │   ├── zfi_pk_zup/              # Upload Hub (FI + PP + GR)
- │   └── zup_rpt/                 # Analytics Hub (FI + PP + GR)
+📦 SAP490_SU26SAP03_GSU26SAP03/
+ ├── ZFI_PK_FIDOC_LEGACY/
+ │   ├── CDS/                     # ZFI_I_UPLOAD_LOG, ZFI_C_UPLOAD_LOG
+ │   ├── BDEF/                    # Behavior Definition ZFI_I_DIS_UP
+ │   ├── CLASS/                   # ZFI_CL_FIDOC_SRV, ZBP_FI_I_DIS_UP
+ │   └── SRVD_SRVB/               # ZFI_UI_ZUP_FIDOC (SRVD + SRVB)
+ ├── ZPP_PK_ZUPLSX/
+ │   ├── CDS/                     # ZPP_I_ZUPLSX, ZPP_C_ZUPLSX
+ │   ├── BDEF/                    # Behavior Definition ZPP_I_ZUPLSX
+ │   ├── CLASS/                   # ZPP_CL_ZUPLSX_SRV, ZBP_PP_I_ZUPLSX
+ │   └── SRVD_SRVB/               # ZPP_UI_ZUPLSX (SRVD + SRVB)
+ ├── ZIH_POGR/
+ │   ├── CORE/                    # Domain, Data Element, Table, Enqueue, Auth
+ │   │   ├── DOMA/                # ZMM_D_GR_STATUS, ZMM_D_PROCESS_ID ...
+ │   │   ├── DTEL/                # ZMM_E_GR_NUMBER, ZMM_E_BATCH_ID ...
+ │   │   ├── TABL/                # ZMM_TB_GR_H, ZMM_TB_GR_I, ZIH_TB_MAP_H ...
+ │   │   └── FUGR/                # ZMM_EN_GR_H (Enqueue function group)
+ │   ├── SERVICE/                 # ZMM_CL_GR_SRV (Phase 2)
+ │   ├── CDS/                     # 9 CDS objects (Phase 3)
+ │   │   ├── ZMM_I_GR_H.ddls      # Interface header
+ │   │   ├── ZMM_I_GR_I.ddls      # Interface item
+ │   │   ├── ZMM_C_GR_H.ddls      # Projection header
+ │   │   ├── ZMM_C_GR_I.ddls      # Projection item
+ │   │   ├── ZMM_I_PO_LOOKUP.ddls # PO validation view
+ │   │   └── *.ddlx               # Metadata extensions
+ │   ├── BDEF_BP/                 # BDEF + ZMM_CL_BP_GR (Phase 4)
+ │   ├── SRVD_SRVB/               # ZMM_UI_POGR_O4 (Phase 4)
+ │   ├── JOB/                     # ZMM_CL_JOB_POST_GR, JOBC, JOBT (Phase 5)
+ │   └── KPI/                     # ZMM_I_GR_KPI, ZMM_C_GR_KPI (Phase 6)
  └── README.md
 ```
 
 ---
 
-## Frontend Applications
+## Mô tả các Package
 
-### 1. `zfi_pk_zup` — Upload Hub
+### ZFI\_PK\_FIDOC\_LEGACY — FI Journal Entry Upload
 
-Tải lên chứng từ hàng loạt từ file Excel cho 3 luồng nghiệp vụ.
+Tải lên chứng từ kế toán từ Excel. Hỗ trợ 88 cột cấu hình, validate trước khi post, log kết quả từng dòng.
 
-**Tính năng:**
-- **FI Tab**: 88 cột cấu hình, check validate / post lên SAP, xem lịch sử file
-- **PP Tab**: Validate ngày DD/MM/YYYY, retry dòng lỗi, kết quả Production Order
-- **GR Tab**: Group nhiều dòng theo GR Number → staging → background job → monitor status
+- **Action**: `uploadExcel` (bound action, OData V4)
+- **Result**: per-row `[0..*]` — kết quả đồng bộ, hiển thị ngay sau khi gọi
+- **BAPI**: `BAPI_ACC_DOCUMENT_POST` (qua SOAP RFC hoặc direct call)
 
-**Chạy local:**
+### ZPP\_PK\_ZUPLSX — PP Production Order Upload
 
-```bash
-cd frontend/zfi_pk_zup
-npm install
-npm start
-# → http://localhost:8080
-```
+Tạo hàng loạt Lệnh Sản xuất từ Excel. Validate ngày DD/MM/YYYY → YYYYMMDD, retry dòng lỗi.
 
----
+- **Action**: `uploadExcel` (bound action, OData V4)
+- **Result**: per-row `[0..*]` — kết quả đồng bộ
+- **BAPI**: `BAPI_PRODORD_CREATE`
 
-### 2. `zup_rpt` — Analytics Hub
+### ZIH\_POGR — MM Goods Receipt Upload (32 objects mới)
 
-Báo cáo và phân tích dữ liệu đã upload.
+Module mới hoàn toàn, xây dựng theo ABAP RAP với APJ background job posting.
 
-**Tính năng:**
-- Filter theo Date Range, Status, CreatedBy
-- KPI tiles tính client-side (Total / Success / Error / Pending)
-- Chart phân tích theo chiều (Document Type / Plant / Month / Status)
-- Xuất Excel báo cáo (sheet Summary + Data chi tiết)
+#### Các Phase triển khai
 
-**Chạy local:**
+| Phase | Nội dung | Objects |
+|-------|----------|---------|
+| **1 — Foundation** | Domain, Data Element, Table staging (`ZMM_TB_GR_H`, `ZMM_TB_GR_I`), Enqueue, Auth table (`ZIH_TB_AUTH_USER`), Mapping tables (`ZIH_TB_MAP_H/I`) | 13 |
+| **2 — Service Class** | `ZMM_CL_GR_SRV` — parse Excel JSON, validate PO open qty (EKBE), BAPI dry run, save staging, schedule APJ | 1 |
+| **3 — CDS Views** | Interface views, Projection views, Abstract entities, Metadata extensions | 9 |
+| **4 — BDEF + Service** | BDEF managed, `ZMM_CL_BP_GR` (RAP handler), `ZMM_UI_POGR_O4` (SRVD + SRVB) | 5 |
+| **5 — Background Job** | `ZMM_CL_JOB_POST_GR`, `ZMM_AJC_POST_GR` (JOBC), `ZMM_AJT_POST_GR` (JOBT) | 3 |
+| **6 — Analytics** | `ZMM_I_GR_KPI`, `ZMM_C_GR_KPI` + update SRVD | 2 + update |
 
-```bash
-cd frontend/zup_rpt
-npm install
-npm start
-```
-
----
-
-## Deploy lên BTP & SAP Work Zone
-
-### Bước 1 — Build ứng dụng
-
-```bash
-# Cho từng app
-cd frontend/zfi_pk_zup
-npm run build
-
-cd frontend/zup_rpt
-npm run build
-```
-
-### Bước 2 — Deploy lên HTML5 Application Repository (BTP)
-
-Sử dụng Fiori Tools hoặc MTA deploy:
-
-```bash
-# Login vào BTP Cloud Foundry
-cf login -a https://api.cf.<region>.hana.ondemand.com \
-  -o <your-org> -s <your-space>
-
-# Deploy từng app (nếu dùng cf push + manifest.yml)
-cf push zfi-pk-zup  -f frontend/zfi_pk_zup/manifest.yml
-cf push zup-rpt     -f frontend/zup_rpt/manifest.yml
-
-# Hoặc dùng MTA (nếu có mta.yaml)
-mbt build
-cf deploy mta_archives/*.mtar
-```
-
-> Nếu dùng **SAP Fiori Tools** trong VS Code: chọn `Fiori: Deploy Application` → chọn BTP target → chọn space.
-
-### Bước 3 — Thêm vào SAP Work Zone
-
-1. Mở **SAP Work Zone** (hay Launchpad Service) trên BTP cockpit
-2. Vào **Provider Manager** → refresh HTML5 Apps
-3. Vào **Content Manager** → **Content Explorer** → tìm `zfi_pk_zup` và `zup_rpt`
-4. Thêm vào **My Content** → gán vào **Role** phù hợp
-5. Vào **Site Manager** → thêm vào **Group** trên Launchpad site
-6. Publish site
-
-### Bước 4 — Cấu hình Destination (BTP Connectivity)
-
-Tạo destination trong BTP cockpit trỏ vào S/4HANA on-premise:
-
-| Property | Giá trị |
-|----------|---------|
-| Name | `S4H_BACKEND` |
-| Type | HTTP |
-| URL | `https://<your-s4hana-host>:<port>` |
-| Authentication | BasicAuthentication (hoặc PrincipalPropagation) |
-| Additional: `sap-client` | `<client>` |
-| Additional: `WebIDEEnabled` | `true` |
-| Additional: `HTML5.DynamicDestination` | `true` |
-
----
-
-## Backend — ZIH_POGR (Goods Receipt Upload)
-
-Module mới xây dựng hoàn toàn theo ABAP RAP với APJ background job.
-
-### Các Phase triển khai
-
-| Phase | Nội dung | Số objects |
-|-------|----------|------------|
-| 1 — Foundation | Domain, Data Element, Table staging (ZMM_TB_GR_H/I), Enqueue, Auth table | 13 |
-| 2 — Service Class | `ZMM_CL_GR_SRV` — parse Excel JSON, validate PO, BAPI, schedule job | 1 |
-| 3 — CDS Views | Interface, Projection, Abstract entities, Metadata extensions | 9 |
-| 4 — BDEF + Service | BDEF managed, BP class, SRVD, SRVB (OData V4 UI) | 5 |
-| 5 — Background Job | `ZMM_CL_JOB_POST_GR`, JOBC `ZMM_AJC_POST_GR`, JOBT `ZMM_AJT_POST_GR` | 3 |
-| 6 — Analytics | KPI CDS view, Projection + update SRVD | 2 + update |
-
-### Luồng xử lý GR Upload
+#### Luồng xử lý GR Upload
 
 ```
 FE: Excel → group theo GR Number → JSON payload
@@ -181,24 +142,28 @@ FE: Excel → group theo GR Number → JSON payload
      { payload_json, mapping_id="POGR001", testmode }
 
 BE: ZMM_CL_BP_GR → ZMM_CL_GR_SRV::upload_excel
-    ├── parse_payload()    → JSON → ABAP structures
-    ├── validate()         → check EKBE open quantity
-    ├── postgr(test=true)  → BAPI dry run
+    ├── parse_payload()    → JSON → ABAP ty_payload_raw
+    ├── validate()         → check EKBE open quantity từng PO item
+    ├── postgr(test=true)  → BAPI dry run, catch lỗi trước
     ├── SAVE staging       → ZMM_TB_GR_H / ZMM_TB_GR_I (status = R)
     └── schedule_job()     → cl_apj_rt_api::schedule_job (ZMM_AJT_POST_GR)
 
-JOB (background): ZMM_CL_JOB_POST_GR::execute
-    ├── BAPI_GOODSMVT_CREATE (movement type 101)
+JOB (background — ngoài RAP LUW):
+    ZMM_CL_JOB_POST_GR::execute
+    ├── BAPI_GOODSMVT_CREATE (movement type 101, GMCode '01')
     ├── COMMIT WORK AND WAIT
     └── UPDATE ZMM_TB_GR_H → status S/E + material_document
 ```
 
-### Initial Data Setup
+- **Result**: `[1]` summary (async) — FE nhận `batch_id`, `total/success/error count`
+- FE poll lại History tab để xem kết quả cuối cùng sau khi APJ chạy xong
 
-Sau khi activate Phase 1, chạy ABAP report hoặc SE16 để insert:
+#### Initial Data Setup
+
+Sau khi activate Phase 1, insert vào các bảng nền:
 
 ```abap
-" Mapping config
+" Mapping header
 INSERT INTO zih_tb_map_h VALUES @( VALUE #(
   mapping_id   = 'POGR001'
   process_id   = 'POGR'
@@ -221,55 +186,62 @@ COMMIT WORK.
 
 | Layer | Technology |
 |-------|------------|
-| Backend | ABAP RAP (managed BDEF, unmanaged actions) |
-| OData | OData V4 — bound Actions, Compositions |
-| Async | SAP Application Job Framework (APJ) |
+| Core | ABAP RAP — managed BDEF, unmanaged bound actions |
+| OData | OData V4 — Service Definition (SRVD) + Service Binding (SRVB) |
+| CDS | Core Data Services — Interface + Projection + Abstract entities |
+| Async | SAP Application Job Framework (APJ) — JOBC + JOBT |
 | BAPI | `BAPI_GOODSMVT_CREATE`, `BAPI_PRODORD_CREATE`, `BAPI_ACC_DOCUMENT_POST` |
-| Frontend | SAP UI5 (Freestyle) — IconTabBar, OData V4 model |
-| Excel parsing | SheetJS (`xlsx.bundle.js`) — phía client |
-| Chart | SVG chart tự vẽ, client-side aggregation |
-| Deploy | SAP BTP Cloud Foundry, HTML5 Application Repository |
-| Launchpad | SAP Work Zone (Launchpad Service Standard) |
+| Dev Tool | Eclipse ADT, abapGit |
 
 ---
 
 ## Yêu cầu môi trường
 
-### Backend (ABAP)
 - SAP S/4HANA On-Premise (ABAP 7.56+)
-- Eclipse ADT với SAP Fiori Tools plugin
-- Application Job Framework (APJ) — kích hoạt `/IWFND/MAINT_SERVICE` và `APJ_RT_API`
+- Eclipse ADT (ABAP Development Tools) với SAP plugin
+- abapGit để clone repo vào SAP
+- Application Job Framework (APJ) kích hoạt trên hệ thống
+- Quyền activate SRVB (OData V4 Service Binding)
+- Quyền tạo/publish JOBC và JOBT
 
-### Frontend (Node.js)
-```bash
-node --version   # >= 18
-npm install -g @sap/ux-ui5-tooling
+---
+
+## Import qua abapGit
+
 ```
-
-### BTP
-- SAP BTP account (trial hoặc enterprise)
-- Cloud Foundry environment
-- HTML5 Application Repository service
-- Connectivity + Destination service
-- SAP Work Zone Standard / Advanced
+1. Mở Eclipse ADT → Window → Perspective → ABAP
+2. Right-click package ZPK_GSU26SAP03 → abapGit Repositories
+3. New → Clone → URL: https://github.com/tata-nguyen-BA/SAP490_SU26SAP03_GSU26SAP03.git
+4. Pull → Activate all objects
+5. Activate SRVB cho từng service (ZFI_UI_ZUP_FIDOC_O4, ZPP_UI_ZUPLSX_O4, ZMM_UI_POGR_O4)
+6. Publish JOBT ZMM_AJT_POST_GR trong Transaction JOBTEMPLATES
+```
 
 ---
 
 ## Bảo mật & `.gitignore`
 
-Không commit các file sau lên git:
+Không commit vào repo này:
 
 ```
 .env
-cookies*.txt
-.mcp.json
-.vsp.json
 *.local.*
-node_modules/
-dist/
+*.bak
 ```
 
-Không đưa vào file tracked: username/password SAP thật, hostname hệ thống thật, transport number thật (DEVK*, R*K*, D*K*).
+Không đưa vào file tracked: username/password SAP thật, hostname hệ thống thật, transport number thật (`DEVK*`, `R*K*`, `D*K*`), customer namespace thật.
+
+---
+
+## Frontend Repository
+
+Frontend (SAP UI5 Fiori Apps) nằm ở repo riêng:
+
+**[SAP490_SU26SAP03_GSU26SAP03_FE](https://github.com/tata-nguyen-BA/SAP490_SU26SAP03_GSU26SAP03_FE)**
+
+Gồm 2 apps:
+- `zfi_pk_zup` — Upload Hub (FI + PP + GR)
+- `zup_rpt` — Analytics Hub (FI + PP + GR)
 
 ---
 
