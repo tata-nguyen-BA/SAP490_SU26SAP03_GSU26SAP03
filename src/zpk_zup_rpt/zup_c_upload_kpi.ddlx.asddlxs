@@ -1,0 +1,46 @@
+@Metadata.layer: #CORE
+@UI: {
+  headerInfo: {
+    typeName: 'Upload',
+    typeNamePlural: 'Upload KPI'
+  },
+  presentationVariant: [{
+    visualizations: [ { type: #AS_CHART }, { type: #AS_LINEITEM } ],
+    sortOrder: [ { by: 'DocDate', direction: #DESC } ]
+  }],
+  chart: [{
+    qualifier: 'KpiChart',
+    chartType: #COLUMN,
+    dimensions: [ 'DocType', 'Status' ],
+    measures: [ 'RecordCount', 'ProcessingSeconds' ]
+  }]
+}
+
+annotate view ZUP_C_UPLOAD_KPI with
+{
+  @UI.selectionField: [ { position: 10 } ]
+  @UI.lineItem: [ { position: 10, label: 'Loai chung tu' } ]
+  DocType;
+
+  @UI.selectionField: [ { position: 20 } ]
+  @UI.lineItem: [ { position: 40, label: 'Trang thai' } ]
+  Status;
+
+  @UI.selectionField: [ { position: 30 } ]
+  @UI.lineItem: [ { position: 50, label: 'Nguoi tao' } ]
+  CreatedBy;
+
+
+  @UI.lineItem: [ { position: 20, label: 'Ma chung tu' } ]
+  DocId;
+
+  @UI.lineItem: [ { position: 30, label: 'Batch / Filename' } ]
+  BatchId;
+
+
+  @UI.lineItem: [ { position: 60, label: 'Ngay chung tu' } ]
+  DocDate;
+
+  @UI.lineItem: [ { position: 70, label: 'Message' } ]
+  Message;
+}

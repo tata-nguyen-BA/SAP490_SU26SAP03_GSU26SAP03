@@ -9,15 +9,16 @@ CLASS zpp_cl_zuplsx_posting_srv DEFINITION
 
   PRIVATE SECTION.
     METHODS create_one_order
-      IMPORTING is_row          TYPE zpp_if_zuplsx_types=>ts_row
-      EXPORTING ev_order        TYPE aufnr
-                ev_error_msg    TYPE string
-      RETURNING VALUE(rv_ok)    TYPE abap_bool.
+      IMPORTING is_row       TYPE zpp_if_zuplsx_types=>ts_row
+      EXPORTING ev_order     TYPE aufnr
+                ev_error_msg TYPE string
+      RETURNING VALUE(rv_ok) TYPE abap_bool.
 
     METHODS save_log
-      IMPORTING is_data TYPE zpp_if_zuplsx_types=>ts_data
-                is_row  TYPE zpp_if_zuplsx_types=>ts_row
+      IMPORTING is_data  TYPE zpp_if_zuplsx_types=>ts_data
+                is_row   TYPE zpp_if_zuplsx_types=>ts_row
                 iv_aufnr TYPE aufnr.
+
 
 ENDCLASS.
 
@@ -66,11 +67,13 @@ CLASS zpp_cl_zuplsx_posting_srv IMPLEMENTATION.
                         message         = |ID { ls_row-id_doc }: Production Order { lv_order } đã được tạo.| )
                TO et_results.
       ELSE.
+        DATA(lv_pp_msg) = |ID { ls_row-id_doc }: { lv_error }|.
         APPEND VALUE #( client_row_id = ls_row-client_row_id
                         id_doc        = ls_row-id_doc
                         type          = 'Error'
-                        message       = |ID { ls_row-id_doc }: { lv_error }| )
+                        message       = lv_pp_msg )
                TO et_results.
+*        save_error( is_data = is_data is_row = ls_row iv_message = lv_pp_msg ).
       ENDIF.
     ENDLOOP.
   ENDMETHOD.
@@ -147,6 +150,9 @@ CLASS zpp_cl_zuplsx_posting_srv IMPLEMENTATION.
 
     MODIFY zpp_tb_zuplsx FROM @ls_save.
   ENDMETHOD.
+
+
+
 
 ENDCLASS.
 

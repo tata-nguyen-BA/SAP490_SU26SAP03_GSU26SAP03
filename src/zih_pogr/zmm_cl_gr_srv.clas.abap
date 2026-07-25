@@ -195,14 +195,35 @@ CLASS zmm_cl_gr_srv IMPLEMENTATION.
       DATA lv_item_no TYPE numc3.
       LOOP AT ls_raw_hd-items INTO DATA(ls_raw_item).
         lv_item_no += 1.
+
+        DATA lv_po_number TYPE ebeln.
+        DATA lv_po_item   TYPE ebelp.
+        DATA lv_sloc      TYPE lgort_d.
+
+        CALL FUNCTION 'CONVERSION_EXIT_ALPHA_INPUT'
+          EXPORTING
+            input  = ls_raw_item-ponumber
+          IMPORTING
+            output = lv_po_number.
+        CALL FUNCTION 'CONVERSION_EXIT_ALPHA_INPUT'
+          EXPORTING
+            input  = ls_raw_item-poitem
+          IMPORTING
+            output = lv_po_item.
+        CALL FUNCTION 'CONVERSION_EXIT_ALPHA_INPUT'
+          EXPORTING
+            input  = ls_raw_item-storagelocation
+          IMPORTING
+            output = lv_sloc.
+
         APPEND VALUE ty_gr_item(
           gr_number        = ls_header-gr_number
           item             = lv_item_no
-          po_number        = |{ ls_raw_item-ponumber ALPHA = IN }|
-          po_item          = |{ ls_raw_item-poitem   ALPHA = IN }|
+          po_number        = lv_po_number
+          po_item          = lv_po_item
           receive_qty      = ls_raw_item-quantity
           unit             = ls_raw_item-baseunit
-          storage_location = |{ ls_raw_item-storagelocation ALPHA = IN }|
+          storage_location = lv_sloc
           status           = gc_status_pending
         ) TO ls_header-items.
       ENDLOOP.
@@ -234,6 +255,7 @@ CLASS zmm_cl_gr_srv IMPLEMENTATION.
     ENDIF.
 
     DATA lv_has_error TYPE abap_boolean.
+    DATA lv_has_ok    TYPE abap_boolean.
     LOOP AT ct_items REFERENCE INTO DATA(lr_item).
       DATA ls_po TYPE ty_po_snapshot.
       DATA lv_found TYPE abap_boolean.
@@ -297,11 +319,11 @@ CLASS zmm_cl_gr_srv IMPLEMENTATION.
       ENDIF.
 
       lr_item->status = gc_status_ready.
+      lv_has_ok = abap_true.
     ENDLOOP.
 
-    cs_header-status = COND #( WHEN lv_has_error = abap_true
-                               THEN gc_status_error
-                               ELSE gc_status_ready ).
+    cs_header-status = COND #( WHEN lv_has_ok = abap_true THEN gc_status_ready
+                               ELSE gc_status_error ).
 
     IF lv_has_error = abap_true.
       LOOP AT ct_items REFERENCE INTO DATA(lr_err) WHERE status = gc_status_error.
@@ -311,6 +333,7 @@ CLASS zmm_cl_gr_srv IMPLEMENTATION.
       ENDLOOP.
     ENDIF.
   ENDMETHOD.
+
 
 
   METHOD postgr.
@@ -407,57 +430,47 @@ CLASS zmm_cl_gr_srv IMPLEMENTATION.
                   ct_items  = lr_hd->items ).
 
       IF lr_hd->status = gc_status_error.
+        " Không có item nào hợp lệ (hoặc lỗi header cứng: GR Number rỗng, trùng...) — không lưu gì cả
         rs_result-error_count += 1.
         rs_result-message = COND #(
             WHEN rs_result-message IS INITIAL
             THEN |GR { lr_hd->gr_number }: { lr_hd->message }|
             ELSE rs_result-message && | | && |GR { lr_hd->gr_number }: { lr_hd->message }| ).
       ELSE.
-        " BAPI test run — dry-run TỪNG item (khớp signature postgr 1-item)
+        " Có ít nhất 1 item hợp lệ — dry-run BAPI CHỈ cho item đã qua validate (status = R),
+        " item đã lỗi từ validate thì không cần gọi BAPI nữa
         DATA ls_hd_db TYPE zmm_tb_gr_h.
         MOVE-CORRESPONDING lr_hd->* TO ls_hd_db.
 
-        DATA lv_dry_ok  TYPE abap_boolean VALUE abap_true.
-        DATA lv_dry_msg TYPE string.
-
-        LOOP AT lr_hd->items REFERENCE INTO DATA(lr_dry_itm).
+        LOOP AT lr_hd->items REFERENCE INTO DATA(lr_dry_itm) WHERE status = gc_status_ready.
           DATA ls_dry_res TYPE ty_bapi_result.
+          CLEAR ls_dry_res.
           postgr( EXPORTING iv_test   = abap_true
                             is_header = ls_hd_db
                             is_item   = lr_dry_itm->*
                   CHANGING  cs_result = ls_dry_res ).
           IF ls_dry_res-status = gc_status_error.
-            lv_dry_ok = abap_false.
-            lv_dry_msg = COND #( WHEN lv_dry_msg IS INITIAL THEN ls_dry_res-message
-                                 ELSE lv_dry_msg && ' | ' && ls_dry_res-message ).
+            lr_dry_itm->status  = gc_status_error.
+            lr_dry_itm->message = ls_dry_res-message.
           ENDIF.
         ENDLOOP.
 
-        IF lv_dry_ok = abap_false.
-          lr_hd->status  = gc_status_error.
-          lr_hd->message = lv_dry_msg.
-          rs_result-error_count += 1.
-          rs_result-message = COND #(
-              WHEN rs_result-message IS INITIAL
-              THEN |GR { lr_hd->gr_number }: { lv_dry_msg }|
-              ELSE rs_result-message && | | && |GR { lr_hd->gr_number }: { lv_dry_msg }| ).
-        ELSE.
-          " Save staging — R = nháp (Check), P = đã xác nhận Post (job sẽ nhặt đúng P)
-          ls_hd_db-status     = COND #( WHEN iv_testmode = abap_false
-                                        THEN gc_status_pending
-                                        ELSE gc_status_ready ).
-          ls_hd_db-testmode   = iv_testmode.
-          ls_hd_db-created_by = sy-uname.
-          ls_hd_db-created_at = utclong_current( ).
-          MODIFY zmm_tb_gr_h FROM @ls_hd_db.
-          MODIFY zmm_tb_gr_i FROM TABLE @( CORRESPONDING #( lr_hd->items ) ).
+        " Lưu staging — R (Check) hoặc P (đã xác nhận Post), bất kể có item lỗi hay không,
+        " miễn có ít nhất 1 item hợp lệ để post
+        ls_hd_db-status     = COND #( WHEN iv_testmode = abap_false
+                                      THEN gc_status_pending
+                                      ELSE gc_status_ready ).
+        ls_hd_db-testmode   = iv_testmode.
+        ls_hd_db-created_by = sy-uname.
+        ls_hd_db-created_at = utclong_current( ).
+        MODIFY zmm_tb_gr_h FROM @ls_hd_db.
+        MODIFY zmm_tb_gr_i FROM TABLE @( CORRESPONDING #( lr_hd->items ) ).
 
-          IF iv_testmode = abap_false.
-            schedule_job( lr_hd->gr_number ).
-          ENDIF.
-
-          rs_result-success_count += 1.
+        IF iv_testmode = abap_false.
+          schedule_job( lr_hd->gr_number ).
         ENDIF.
+
+        rs_result-success_count += 1.
       ENDIF.
     ENDLOOP.
 
@@ -467,6 +480,7 @@ CLASS zmm_cl_gr_srv IMPLEMENTATION.
                                THEN gc_status_error
                                ELSE gc_status_ready ).
   ENDMETHOD.
+
 
 
   METHOD get_po_snapshot.
@@ -503,17 +517,17 @@ CLASS zmm_cl_gr_srv IMPLEMENTATION.
 
   METHOD get_open_qty.
     DATA lv_received TYPE menge_d.
-    SELECT SUM( menge )
+    SELECT SUM( CASE WHEN shkzg = 'H' THEN menge * -1 ELSE menge END )
       FROM ekbe
       WHERE ebeln = @iv_po_number
         AND ebelp = @iv_po_item
         AND vgabe = '1'
-        AND shkzg = ' '
       INTO @lv_received.
 
     rv_open_qty = iv_order_qty - lv_received.
     IF rv_open_qty < 0. rv_open_qty = 0. ENDIF.
   ENDMETHOD.
+
 
 
   METHOD check_duplicate.
@@ -543,9 +557,11 @@ CLASS zmm_cl_gr_srv IMPLEMENTATION.
             is_start_info          = ls_start_info
             it_job_parameter_value = lt_params ).
       CATCH cx_apj_rt cx_apj_dt_content INTO DATA(lx).
-
     ENDTRY.
   ENDMETHOD.
+
+
+
 
 ENDCLASS.
 

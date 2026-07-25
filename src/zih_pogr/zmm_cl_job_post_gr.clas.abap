@@ -25,27 +25,46 @@ CLASS zmm_cl_job_post_gr IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD if_apj_rt_exec_object~execute.
-    " Sweep TẤT CẢ GR đang PENDING (P = đã xác nhận Post, khác với R = nháp chưa xác nhận)
+ METHOD if_apj_rt_exec_object~execute.
+  DATA lv_gr_number TYPE zmm_de_gr_number.
+
+  READ TABLE it_parameters INTO DATA(ls_p) WITH KEY selname = 'GRNUMBER'.
+  IF sy-subrc = 0.
+    lv_gr_number = ls_p-low.
+  ENDIF.
+
     DATA lt_hd TYPE STANDARD TABLE OF zmm_tb_gr_h.
     SELECT * FROM zmm_tb_gr_h
       WHERE status = @zmm_cl_gr_srv=>gc_status_pending
+         OR ( status   = @zmm_cl_gr_srv=>gc_status_ready
+              AND testmode = @abap_false )
       INTO TABLE @lt_hd.
+
+    " Job có thể chạy trước khi transaction gọi retryPost/uploadExcel kịp commit —
+    " đợi ngắn rồi quét lại 1 lần thay vì bỏ cuộc ngay
+    IF lt_hd IS INITIAL.
+      WAIT UP TO 3 SECONDS.
+      SELECT * FROM zmm_tb_gr_h
+        WHERE status = @zmm_cl_gr_srv=>gc_status_pending
+           OR ( status   = @zmm_cl_gr_srv=>gc_status_ready
+                AND testmode = @abap_false )
+        INTO TABLE @lt_hd.
+    ENDIF.
+
 
     LOOP AT lt_hd INTO DATA(ls_hd).
       DATA lt_itm TYPE zmm_cl_gr_srv=>tyt_gr_item.
+      " Chỉ lấy item CHƯA thành công — tránh post lại item đã có Material Document
       SELECT gr_number, item, po_number, po_item,
              material, plant, receive_qty, unit,
              storage_location, order_qty, open_qty,
              status, message
         FROM zmm_tb_gr_i
         WHERE gr_number = @ls_hd-gr_number
+          AND status   <> @zmm_cl_gr_srv=>gc_status_success
         INTO CORRESPONDING FIELDS OF TABLE @lt_itm.
 
       IF lt_itm IS INITIAL. CONTINUE. ENDIF.
-
-      DATA lv_all_ok  TYPE abap_boolean VALUE abap_true.
-      DATA lv_all_err TYPE abap_boolean VALUE abap_true.
 
       LOOP AT lt_itm REFERENCE INTO DATA(lr_itm).
         DATA ls_item_result TYPE zmm_cl_gr_srv=>ty_bapi_result.
@@ -66,16 +85,22 @@ CLASS zmm_cl_job_post_gr IMPLEMENTATION.
               material_document = @lv_mat_doc,
               mat_doc_item      = '0001'
           WHERE gr_number = @ls_hd-gr_number AND item = @lr_itm->item.
-
-        IF ls_item_result-status = zmm_cl_gr_srv=>gc_status_error.
-          lv_all_ok = abap_false.
-        ELSE.
-          lv_all_err = abap_false.
-        ENDIF.
       ENDLOOP.
+
+      " Tổng hợp status header từ TOÀN BỘ item (kể cả item đã OK từ lần chạy trước)
+      SELECT COUNT(*) FROM zmm_tb_gr_i
+        WHERE gr_number = @ls_hd-gr_number
+        INTO @DATA(lv_total_cnt).
+      SELECT COUNT(*) FROM zmm_tb_gr_i
+        WHERE gr_number = @ls_hd-gr_number AND status = @zmm_cl_gr_srv=>gc_status_success
+        INTO @DATA(lv_ok_cnt).
+      SELECT COUNT(*) FROM zmm_tb_gr_i
+        WHERE gr_number = @ls_hd-gr_number AND status = @zmm_cl_gr_srv=>gc_status_error
+        INTO @DATA(lv_err_cnt).
+
       UPDATE zmm_tb_gr_h
-        SET status          = @( COND #( WHEN lv_all_ok  = abap_true THEN zmm_cl_gr_srv=>gc_status_success
-                                          WHEN lv_all_err = abap_true THEN zmm_cl_gr_srv=>gc_status_error
+        SET status          = @( COND #( WHEN lv_ok_cnt  = lv_total_cnt THEN zmm_cl_gr_srv=>gc_status_success
+                                          WHEN lv_err_cnt = lv_total_cnt THEN zmm_cl_gr_srv=>gc_status_error
                                           ELSE zmm_cl_gr_srv=>gc_status_ready ) ),
             last_changed_at = @( utclong_current( ) ),
             last_changed_by = @sy-uname
@@ -85,6 +110,7 @@ CLASS zmm_cl_job_post_gr IMPLEMENTATION.
 
     COMMIT WORK AND WAIT.
   ENDMETHOD.
+
 
 ENDCLASS.
 

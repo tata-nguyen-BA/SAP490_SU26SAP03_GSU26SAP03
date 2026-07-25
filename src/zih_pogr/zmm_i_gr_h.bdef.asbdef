@@ -7,6 +7,7 @@ define behavior for zmm_i_gr_h alias GrUpload
   authorization master (instance)
   etag master LastChangedAt
 {
+  update;
 
   static action uploadExcel
     parameter  ZD_GRUPLOADPARAM

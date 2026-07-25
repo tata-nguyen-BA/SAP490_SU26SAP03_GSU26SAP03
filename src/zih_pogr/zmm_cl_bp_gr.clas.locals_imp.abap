@@ -42,28 +42,35 @@ CLASS lhc_gr_upload IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD retry_post.
+    METHOD retry_post.
     " Dùng chung cho cả "Post ngay" (từ nháp R) và "Retry" (khi lỗi E)
     LOOP AT keys INTO DATA(ls_key).
       READ ENTITIES OF zmm_i_gr_h IN LOCAL MODE
         ENTITY GrUpload
-        FIELDS ( Status ) WITH CORRESPONDING #( keys )
+        FIELDS ( Status ) WITH VALUE #( ( %tky = ls_key-%tky ) )
         RESULT DATA(lt_entity).
 
+      IF lt_entity IS INITIAL. CONTINUE. ENDIF.
       DATA(ls_entity) = lt_entity[ 1 ].
+
       IF ls_entity-Status <> zmm_cl_gr_srv=>gc_status_error
      AND ls_entity-Status <> zmm_cl_gr_srv=>gc_status_ready.
         CONTINUE.
       ENDIF.
 
       UPDATE zmm_tb_gr_h
-        SET status  = @zmm_cl_gr_srv=>gc_status_pending,
-            message = 'Đã xác nhận Post — đang xử lý nền'
-        WHERE gr_number = @ls_key-%key-GrNumber.
+        SET status          = @zmm_cl_gr_srv=>gc_status_pending,
+            message          = 'Đã xác nhận Post — đang xử lý nền',
+            testmode         = @abap_false,
+            last_changed_at  = @( utclong_current( ) ),
+            last_changed_by  = @sy-uname
+        WHERE gr_number = @ls_key-%tky-GrNumber.
 
-      zmm_cl_gr_srv=>schedule_job( ls_key-%key-GrNumber ).
+      zmm_cl_gr_srv=>schedule_job( ls_key-%tky-GrNumber ).
     ENDLOOP.
   ENDMETHOD.
+
+
 
 
   METHOD get_instance_features.
@@ -75,11 +82,14 @@ CLASS lhc_gr_upload IMPLEMENTATION.
     result = VALUE #( FOR ls IN lt_entity (
       %tky              = ls-%tky
       %action-retryPost = COND #(
-        WHEN ls-Status = zmm_cl_gr_srv=>gc_status_error OR ls-Status = zmm_cl_gr_srv=>gc_status_ready
+        WHEN ls-Status = zmm_cl_gr_srv=>gc_status_error
+          OR ls-Status = zmm_cl_gr_srv=>gc_status_ready
+          OR ls-Status = zmm_cl_gr_srv=>gc_status_pending
         THEN if_abap_behv=>fc-o-enabled
         ELSE if_abap_behv=>fc-o-disabled )
     ) ).
   ENDMETHOD.
+
 
 
   METHOD get_instance_authorizations.

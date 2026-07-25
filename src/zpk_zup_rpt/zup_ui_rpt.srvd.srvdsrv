@@ -3,4 +3,5 @@ define service ZUP_UI_RPT {
   expose ZUP_C_FIUPLOAD_RPT as FIUploadReport;
   expose ZUP_C_PPUPLOAD_RPT as PPUploadReport;
   expose ZUP_C_FIUPLOAD_ITEM as FIUploadItem;
+  expose ZUP_C_UPLOAD_KPI as UploadKPI;
 }
