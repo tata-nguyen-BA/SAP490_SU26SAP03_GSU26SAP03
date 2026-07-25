@@ -4,5 +4,17 @@
     "description": "Post GR to Material Document",
     "originalLanguage": "en"
   },
-  "catalogName": "ZMM_AJC_POST_GR"
+  "catalogName": "ZMM_AJC_POST_GR",
+  "parameters": [
+    {
+      "name": "GRNUMBER",
+      "valueRanges": [
+        {
+          "sign": "include",
+          "option": "equals",
+          "low": ""
+        }
+      ]
+    }
+  ]
 }

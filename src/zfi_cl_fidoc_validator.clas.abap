@@ -15,17 +15,17 @@ CLASS zfi_cl_fidoc_validator DEFINITION
     DATA ms_request TYPE zfi_if_fidoc_types=>ts_post_request.
 
     METHODS convert_and_validate_item
-      IMPORTING is_raw              TYPE zfi_if_fidoc_types=>ts_doc_item_request
-                iv_doc_id           TYPE string
-      EXPORTING es_item             TYPE zfi_if_fidoc_types=>ts_item
-                et_item_errors      TYPE zfi_if_fidoc_types=>tt_results
+      IMPORTING is_raw               TYPE zfi_if_fidoc_types=>ts_doc_item_request
+                iv_doc_id            TYPE string
+      EXPORTING es_item              TYPE zfi_if_fidoc_types=>ts_item
+                et_item_errors       TYPE zfi_if_fidoc_types=>tt_results
       RETURNING VALUE(rv_item_valid) TYPE abap_bool.
 
 ENDCLASS.
 
 
 
-CLASS ZFI_CL_FIDOC_VALIDATOR IMPLEMENTATION.
+CLASS zfi_cl_fidoc_validator IMPLEMENTATION.
 
 
   METHOD constructor.
@@ -101,8 +101,8 @@ CLASS ZFI_CL_FIDOC_VALIDATOR IMPLEMENTATION.
       RETURN.
     ENDIF.
 
-    DATA lv_doc_cur   TYPE i value 1.
-    DATA lv_local_cur TYPE i value 100.
+    DATA lv_doc_cur   TYPE i VALUE 1.
+    DATA lv_local_cur TYPE i VALUE 100.
 
     IF is_raw-transactioncurrency = 'VND'.
       lv_doc_cur = 100.

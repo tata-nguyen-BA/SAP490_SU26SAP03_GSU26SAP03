@@ -38,17 +38,13 @@ CLASS zmm_cl_gr_srv DEFINITION
              item             TYPE numc3,
              po_number        TYPE ebeln,
              po_item          TYPE ebelp,
-             " Derive từ PO — không có trong Excel
              material         TYPE matnr,
              plant            TYPE werks_d,
-             " Từ Excel
              receive_qty      TYPE menge_d,
              unit             TYPE meins,
              storage_location TYPE lgort_d,
-             " Snapshot PO khi validate
              order_qty        TYPE menge_d,
              open_qty         TYPE menge_d,
-             " Processing
              status           TYPE zih_de_upload_status,
              message          TYPE string,
            END OF ty_gr_item.
@@ -69,7 +65,6 @@ CLASS zmm_cl_gr_srv DEFINITION
 
     TYPES tyt_gr_header TYPE STANDARD TABLE OF ty_gr_header
                         WITH DEFAULT KEY.
-
 
     TYPES: BEGIN OF ty_bapi_result,
              material_document      TYPE mblnr,
@@ -111,11 +106,8 @@ CLASS zmm_cl_gr_srv DEFINITION
       gc_status_error   TYPE zih_de_upload_status VALUE 'E',
       gc_mvt_gr_po      TYPE bwart VALUE '101',
       gc_gm_code_01     TYPE c LENGTH 2 VALUE '01',
-      " mvt_ind = 'B' hardcoded (giống ZIF_CL_API_PGR line ~908)
       gc_mvt_ind_po     TYPE c LENGTH 1 VALUE 'B'.
 
-
-    " Parse JSON → internal typed structs
     CLASS-METHODS parse_payload
       IMPORTING
         iv_json       TYPE string
@@ -125,23 +117,17 @@ CLASS zmm_cl_gr_srv DEFINITION
       RAISING
         cx_sy_conversion_error.
 
-    " ─── MAIN POST METHOD ────────────────────────────────────
-    " Giống ZIF_CL_API_PGR=>postgr() CLASS-METHOD
-    " Gọi từ: RAP behavior impl (action) + background job
     CLASS-METHODS postgr
       IMPORTING
         iv_test                   TYPE abap_boolean
         is_header                 TYPE zmm_tb_gr_h
-        it_items                  TYPE tyt_gr_item
+        is_item                   TYPE ty_gr_item
       EXPORTING
         ev_material_document      TYPE mblnr
         ev_material_document_year TYPE mjahr
       CHANGING
         cs_result                 TYPE ty_bapi_result.
 
-    " ─── VALIDATE ────────────────────────────────────────────
-    " Validate required fields + PO reference
-    " Enrich items: fill material, plant, order_qty, open_qty từ PO
     CLASS-METHODS validate
       IMPORTING
         is_header TYPE ty_gr_header
@@ -149,9 +135,6 @@ CLASS zmm_cl_gr_srv DEFINITION
         cs_header TYPE ty_gr_header
         ct_items  TYPE tyt_gr_item.
 
-    " ─── UPLOAD ORCHESTRATION ────────────────────────────────
-    " Gọi từ RAP action uploadExcel:
-    " parse → validate → test run → save staging → schedule job
     CLASS-METHODS upload_excel
       IMPORTING
         iv_payload_json  TYPE string
@@ -165,7 +148,6 @@ CLASS zmm_cl_gr_srv DEFINITION
         iv_gr_number TYPE zmm_de_gr_number.
   PROTECTED SECTION.
   PRIVATE SECTION.
-    " Đọc PO từ ZMM_I_PO_LOOKUP (EKPO + EKKO)
     CLASS-METHODS get_po_snapshot
       IMPORTING
         iv_po_number TYPE ebeln
@@ -174,7 +156,6 @@ CLASS zmm_cl_gr_srv DEFINITION
         es_po        TYPE ty_po_snapshot
         ev_found     TYPE abap_boolean.
 
-    " Tính open qty từ EKBE (on-premise)
     CLASS-METHODS get_open_qty
       IMPORTING
         iv_po_number       TYPE ebeln
@@ -183,29 +164,24 @@ CLASS zmm_cl_gr_srv DEFINITION
       RETURNING
         VALUE(rv_open_qty) TYPE menge_d.
 
-    " Check GR đã post thành công chưa → tránh duplicate
     CLASS-METHODS check_duplicate
       IMPORTING
         iv_gr_number     TYPE zmm_de_gr_number
       RETURNING
         VALUE(rv_exists) TYPE abap_boolean.
 
-    " Session-level PO cache tránh SELECT nhiều lần
     CLASS-DATA gt_po_cache TYPE tyt_po_snapshot.
 ENDCLASS.
 
 
-
 CLASS zmm_cl_gr_srv IMPLEMENTATION.
   METHOD parse_payload.
-    " ── Bước 1: deserialize JSON → raw struct ────────────────
     DATA ls_payload TYPE ty_payload_raw.
     /ui2/cl_json=>deserialize(
       EXPORTING json        = iv_json
                 pretty_name = /ui2/cl_json=>pretty_mode-camel_case
       CHANGING  data        = ls_payload ).
 
-    " ── Bước 2: loop từng GR doc → convert sang typed ────────
     LOOP AT ls_payload-doc INTO DATA(ls_raw_hd).
       DATA ls_header TYPE ty_gr_header.
       ls_header-gr_number     = ls_raw_hd-grnumber.
@@ -213,7 +189,6 @@ CLASS zmm_cl_gr_srv IMPLEMENTATION.
       ls_header-movement_type = COND #( WHEN ls_raw_hd-movementtype IS INITIAL
                                         THEN gc_mvt_gr_po
                                         ELSE ls_raw_hd-movementtype ).
-      " Convert date string 'YYYY-MM-DD' hoặc 'YYYYMMDD' → DATS
       REPLACE ALL OCCURRENCES OF '-' IN ls_raw_hd-documentdate WITH ''.
       ls_header-document_date = ls_raw_hd-documentdate.
 
@@ -239,7 +214,6 @@ CLASS zmm_cl_gr_srv IMPLEMENTATION.
 
 
   METHOD validate.
-    " ── Required field check ─────────────────────────────────
     IF is_header-gr_number IS INITIAL.
       cs_header-status = gc_status_error.
       cs_header-message = 'GR Number không được rỗng'. RETURN.
@@ -253,20 +227,17 @@ CLASS zmm_cl_gr_srv IMPLEMENTATION.
       cs_header-message = 'Cần ít nhất 1 PO item'. RETURN.
     ENDIF.
 
-    " ── Duplicate check ───────────────────────────────────────
     IF check_duplicate( is_header-gr_number ) = abap_true.
       cs_header-status  = gc_status_error.
       cs_header-message = |GR { is_header-gr_number } đã post thành công|.
       RETURN.
     ENDIF.
 
-    " ── Validate từng item ────────────────────────────────────
     DATA lv_has_error TYPE abap_boolean.
     LOOP AT ct_items REFERENCE INTO DATA(lr_item).
       DATA ls_po TYPE ty_po_snapshot.
       DATA lv_found TYPE abap_boolean.
 
-      " Item required fields
       IF lr_item->po_number IS INITIAL OR lr_item->po_item IS INITIAL.
         lr_item->status  = gc_status_error.
         lr_item->message = 'PO Number / PO Item không được rỗng'.
@@ -283,7 +254,6 @@ CLASS zmm_cl_gr_srv IMPLEMENTATION.
         lv_has_error = abap_true. CONTINUE.
       ENDIF.
 
-      " PO lookup
       get_po_snapshot(
         EXPORTING iv_po_number = lr_item->po_number
                   iv_po_item   = lr_item->po_item
@@ -296,7 +266,6 @@ CLASS zmm_cl_gr_srv IMPLEMENTATION.
         lv_has_error = abap_true. CONTINUE.
       ENDIF.
 
-      " Business checks
       IF ls_po-gr_indicator <> 'X'.
         lr_item->status  = gc_status_error.
         lr_item->message = 'PO item không cho phép Goods Receipt'.
@@ -313,7 +282,6 @@ CLASS zmm_cl_gr_srv IMPLEMENTATION.
         lv_has_error = abap_true. CONTINUE.
       ENDIF.
 
-      " Enrich từ PO
       lr_item->material      = ls_po-material.
       lr_item->plant         = ls_po-plant.
       lr_item->order_qty     = ls_po-order_qty.
@@ -322,7 +290,6 @@ CLASS zmm_cl_gr_srv IMPLEMENTATION.
                                  iv_po_item   = lr_item->po_item
                                  iv_order_qty = ls_po-order_qty ).
 
-      " Qty check
       IF lr_item->receive_qty > lr_item->open_qty.
         lr_item->status  = gc_status_error.
         lr_item->message = |Receive Qty { lr_item->receive_qty } vượt Open Qty { lr_item->open_qty }|.
@@ -335,43 +302,43 @@ CLASS zmm_cl_gr_srv IMPLEMENTATION.
     cs_header-status = COND #( WHEN lv_has_error = abap_true
                                THEN gc_status_error
                                ELSE gc_status_ready ).
+
+    IF lv_has_error = abap_true.
+      LOOP AT ct_items REFERENCE INTO DATA(lr_err) WHERE status = gc_status_error.
+        cs_header-message = COND #( WHEN cs_header-message IS INITIAL
+                                    THEN |Item { lr_err->item }: { lr_err->message }|
+                                    ELSE cs_header-message && | | && |Item { lr_err->item }: { lr_err->message }| ).
+      ENDLOOP.
+    ENDIF.
   ENDMETHOD.
 
 
   METHOD postgr.
-    " ── Giống ZIF_CL_API_PGR=>postgr() ──────────────────────
     DATA ls_gm_code   TYPE bapi2017_gm_code.
     DATA ls_gm_header TYPE bapi2017_gm_head_01.
     DATA lt_gm_items  TYPE STANDARD TABLE OF bapi2017_gm_item_create.
     DATA lt_return    TYPE TABLE OF bapiret2.
 
-    " MVT 101 → GMCode 01
     ls_gm_code-gm_code = SWITCH #( is_header-movement_type
                                     WHEN gc_mvt_gr_po THEN gc_gm_code_01
                                     ELSE gc_gm_code_01 ).
 
-    " ⚠️ documentDate → CẢ pstng_date VÀ doc_date (giống ZIF line ~820)
     ls_gm_header-pstng_date = is_header-document_date.
     ls_gm_header-doc_date   = is_header-document_date.
     ls_gm_header-header_txt = is_header-gr_number.
 
-    " Build BAPI items
-    DATA lv_line TYPE i.
-    LOOP AT it_items INTO DATA(ls_item).
-      lv_line += 1.
-      APPEND VALUE bapi2017_gm_item_create(
-        line_id   = lv_line
-        po_number = ls_item-po_number
-        po_item   = ls_item-po_item
-        move_type = is_header-movement_type
-        plant     = ls_item-plant
-        material  = ls_item-material
-        entry_qnt = ls_item-receive_qty
-        entry_uom = ls_item-unit
-        stge_loc  = ls_item-storage_location
-        mvt_ind   = gc_mvt_ind_po              " 'B' hardcoded
-      ) TO lt_gm_items.
-    ENDLOOP.
+    APPEND VALUE bapi2017_gm_item_create(
+      line_id   = 1
+      po_number = is_item-po_number
+      po_item   = is_item-po_item
+      move_type = is_header-movement_type
+      plant     = is_item-plant
+      material  = is_item-material
+      entry_qnt = is_item-receive_qty
+      entry_uom = is_item-unit
+      stge_loc  = is_item-storage_location
+      mvt_ind   = gc_mvt_ind_po
+    ) TO lt_gm_items.
 
     CALL FUNCTION 'BAPI_GOODSMVT_CREATE'
       EXPORTING
@@ -385,7 +352,6 @@ CLASS zmm_cl_gr_srv IMPLEMENTATION.
         goodsmvt_item    = lt_gm_items
         return           = lt_return.
 
-    " Parse BAPIRET2
     DATA lv_has_error TYPE abap_boolean.
     LOOP AT lt_return INTO DATA(ls_ret) WHERE type = 'E' OR type = 'A'.
       lv_has_error = abap_true.
@@ -395,7 +361,9 @@ CLASS zmm_cl_gr_srv IMPLEMENTATION.
     ENDLOOP.
 
     IF lv_has_error = abap_true.
-      CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'.
+      IF iv_test = abap_false.
+        CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'.
+      ENDIF.
       cs_result-status = gc_status_error.
       CLEAR: ev_material_document, ev_material_document_year.
     ELSE.
@@ -403,18 +371,16 @@ CLASS zmm_cl_gr_srv IMPLEMENTATION.
         CALL FUNCTION 'BAPI_TRANSACTION_COMMIT' EXPORTING wait = 'X'.
         cs_result-status = gc_status_success.
       ELSE.
-        cs_result-status = gc_status_ready.  " test run OK
+        cs_result-status = gc_status_ready.
       ENDIF.
     ENDIF.
   ENDMETHOD.
 
 
   METHOD upload_excel.
-    " ── Gen batch ID ─────────────────────────────────────────
     DATA lv_batch_id TYPE zih_de_batch_id.
     lv_batch_id = cl_system_uuid=>create_uuid_c22_static( ).
 
-    " ── Parse JSON → internal typed ──────────────────────────
     DATA lt_headers TYPE tyt_gr_header.
     TRY.
         parse_payload(
@@ -431,10 +397,8 @@ CLASS zmm_cl_gr_srv IMPLEMENTATION.
     rs_result-batch_id    = lv_batch_id.
     rs_result-total_count = lines( lt_headers ).
 
-    " ── Loop từng GR header ───────────────────────────────────
     LOOP AT lt_headers REFERENCE INTO DATA(lr_hd).
 
-      " Validate + enrich items
       DATA ls_hd_val TYPE ty_gr_header.
       ls_hd_val = lr_hd->*.
       validate(
@@ -444,31 +408,50 @@ CLASS zmm_cl_gr_srv IMPLEMENTATION.
 
       IF lr_hd->status = gc_status_error.
         rs_result-error_count += 1.
+        rs_result-message = COND #(
+            WHEN rs_result-message IS INITIAL
+            THEN |GR { lr_hd->gr_number }: { lr_hd->message }|
+            ELSE rs_result-message && | | && |GR { lr_hd->gr_number }: { lr_hd->message }| ).
       ELSE.
-        " BAPI test run
-        DATA ls_hd_db    TYPE zmm_tb_gr_h.
-        DATA ls_bapi_res TYPE ty_bapi_result.
+        " BAPI test run — dry-run TỪNG item (khớp signature postgr 1-item)
+        DATA ls_hd_db TYPE zmm_tb_gr_h.
         MOVE-CORRESPONDING lr_hd->* TO ls_hd_db.
 
-        postgr( EXPORTING iv_test   = abap_true
-                          is_header = ls_hd_db
-                          it_items  = lr_hd->items
-                CHANGING  cs_result = ls_bapi_res ).
+        DATA lv_dry_ok  TYPE abap_boolean VALUE abap_true.
+        DATA lv_dry_msg TYPE string.
 
-        IF ls_bapi_res-status = gc_status_error.
+        LOOP AT lr_hd->items REFERENCE INTO DATA(lr_dry_itm).
+          DATA ls_dry_res TYPE ty_bapi_result.
+          postgr( EXPORTING iv_test   = abap_true
+                            is_header = ls_hd_db
+                            is_item   = lr_dry_itm->*
+                  CHANGING  cs_result = ls_dry_res ).
+          IF ls_dry_res-status = gc_status_error.
+            lv_dry_ok = abap_false.
+            lv_dry_msg = COND #( WHEN lv_dry_msg IS INITIAL THEN ls_dry_res-message
+                                 ELSE lv_dry_msg && ' | ' && ls_dry_res-message ).
+          ENDIF.
+        ENDLOOP.
+
+        IF lv_dry_ok = abap_false.
           lr_hd->status  = gc_status_error.
-          lr_hd->message = ls_bapi_res-message.
+          lr_hd->message = lv_dry_msg.
           rs_result-error_count += 1.
+          rs_result-message = COND #(
+              WHEN rs_result-message IS INITIAL
+              THEN |GR { lr_hd->gr_number }: { lv_dry_msg }|
+              ELSE rs_result-message && | | && |GR { lr_hd->gr_number }: { lv_dry_msg }| ).
         ELSE.
-          " Save staging
-          MOVE-CORRESPONDING lr_hd->* TO ls_hd_db.
-          ls_hd_db-status   = gc_status_ready.
-          ls_hd_db-testmode = iv_testmode.
+          " Save staging — R = nháp (Check), P = đã xác nhận Post (job sẽ nhặt đúng P)
+          ls_hd_db-status     = COND #( WHEN iv_testmode = abap_false
+                                        THEN gc_status_pending
+                                        ELSE gc_status_ready ).
+          ls_hd_db-testmode   = iv_testmode.
+          ls_hd_db-created_by = sy-uname.
+          ls_hd_db-created_at = utclong_current( ).
           MODIFY zmm_tb_gr_h FROM @ls_hd_db.
           MODIFY zmm_tb_gr_i FROM TABLE @( CORRESPONDING #( lr_hd->items ) ).
-          COMMIT WORK AND WAIT.
 
-          " Schedule job (nếu không phải testmode)
           IF iv_testmode = abap_false.
             schedule_job( lr_hd->gr_number ).
           ENDIF.
@@ -482,12 +465,11 @@ CLASS zmm_cl_gr_srv IMPLEMENTATION.
                                THEN gc_status_success
                                WHEN rs_result-success_count = 0
                                THEN gc_status_error
-                               ELSE gc_status_ready ).  " partial
+                               ELSE gc_status_ready ).
   ENDMETHOD.
 
 
   METHOD get_po_snapshot.
-    " Check cache trước
     READ TABLE gt_po_cache INTO es_po
       WITH KEY po_number = iv_po_number
                po_item   = iv_po_item.
@@ -495,7 +477,6 @@ CLASS zmm_cl_gr_srv IMPLEMENTATION.
       ev_found = abap_true. RETURN.
     ENDIF.
 
-    " SELECT từ ZMM_I_PO_LOOKUP (view trên EKPO + EKKO)
     SELECT SINGLE
         PurchaseOrder        AS po_number,
         PurchaseOrderItem    AS po_item,
@@ -521,14 +502,13 @@ CLASS zmm_cl_gr_srv IMPLEMENTATION.
 
 
   METHOD get_open_qty.
-    " On-premise: tính từ EKBE (history thật, kể cả GR từ ME21N)
     DATA lv_received TYPE menge_d.
     SELECT SUM( menge )
       FROM ekbe
       WHERE ebeln = @iv_po_number
         AND ebelp = @iv_po_item
-        AND vgabe = '1'     " GR movement
-        AND shkzg = ' '     " positive (không phải reversal)
+        AND vgabe = '1'
+        AND shkzg = ' '
       INTO @lv_received.
 
     rv_open_qty = iv_order_qty - lv_received.
@@ -551,7 +531,7 @@ CLASS zmm_cl_gr_srv IMPLEMENTATION.
 
     DATA lt_params TYPE cl_apj_rt_api=>tt_job_parameter_value.
     APPEND VALUE #(
-      name    = 'GR_NUMBER'
+      name    = 'GRNUMBER'
       t_value = VALUE #( ( sign = 'I' option = 'EQ' low = iv_gr_number ) )
     ) TO lt_params.
 
@@ -563,6 +543,9 @@ CLASS zmm_cl_gr_srv IMPLEMENTATION.
             is_start_info          = ls_start_info
             it_job_parameter_value = lt_params ).
       CATCH cx_apj_rt cx_apj_dt_content INTO DATA(lx).
+
     ENDTRY.
   ENDMETHOD.
+
 ENDCLASS.
+
