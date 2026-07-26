@@ -86,12 +86,6 @@ CLASS zfi_cl_fidoc_posting_srv IMPLEMENTATION.
       <ls_res>-message = ls_rep-%msg->if_message~get_text( ).
     ENDLOOP.
 
-    LOOP AT et_results INTO DATA(ls_err_res) WHERE type = 'Error'.
-      mo_log_srv->save_error( iv_filename = ls_err_res-filename
-                              iv_id_doc   = ls_err_res-id_doc
-                              iv_message  = ls_err_res-message ).
-    ENDLOOP.
-
     IF ls_failed IS NOT INITIAL.
       ev_has_error = abap_true.
       RETURN.
@@ -165,7 +159,6 @@ CLASS zfi_cl_fidoc_posting_srv IMPLEMENTATION.
         CONTINUE.
       ENDIF.
 
-
       DATA lv_xml_response TYPE string.
       DATA lv_guid         TYPE string.
 
@@ -215,15 +208,12 @@ CLASS zfi_cl_fidoc_posting_srv IMPLEMENTATION.
               iv_payload     = lv_xml_request ).
 
         CATCH cx_web_http_client_error INTO DATA(lx_http).
-          DATA(lv_msg_http) = lx_http->get_text( ).
           APPEND VALUE #( filename = ls_header-filename
                           id_doc   = ls_header-id_doc
                           type     = 'Error'
-                          message  = lv_msg_http ) TO et_results.
-          mo_log_srv->save_error( iv_filename = ls_header-filename iv_id_doc = ls_header-id_doc iv_message = lv_msg_http ).
+                          message  = lx_http->get_text( ) ) TO et_results.
           CONTINUE.
       ENDTRY.
-
 
       DATA(ls_soap_result) = parse_soap_response( iv_xml_response = lv_xml_response
                                                   is_header       = ls_header
@@ -231,12 +221,8 @@ CLASS zfi_cl_fidoc_posting_srv IMPLEMENTATION.
 
       IF ls_soap_result-has_error = abap_true.
         APPEND LINES OF ls_soap_result-messages TO et_results.
-        LOOP AT ls_soap_result-messages INTO DATA(ls_soap_msg) WHERE type = 'Error'.
-          mo_log_srv->save_error( iv_filename = ls_header-filename iv_id_doc = ls_header-id_doc iv_message = ls_soap_msg-message ).
-        ENDLOOP.
         CONTINUE.
       ENDIF.
-
 
       " Chế độ mô phỏng: không ghi log, không ghi chứng từ — chỉ trả kết quả validate
       IF iv_testmode = abap_true.

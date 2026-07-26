@@ -383,20 +383,26 @@ CLASS zmm_cl_gr_srv IMPLEMENTATION.
                                   ELSE cs_result-message && ' | ' && ls_ret-message ).
     ENDLOOP.
 
-    IF lv_has_error = abap_true.
-      IF iv_test = abap_false.
-        CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'.
-      ENDIF.
-      cs_result-status = gc_status_error.
-      CLEAR: ev_material_document, ev_material_document_year.
-    ELSE.
-      IF iv_test = abap_false.
-        CALL FUNCTION 'BAPI_TRANSACTION_COMMIT' EXPORTING wait = 'X'.
-        cs_result-status = gc_status_success.
-      ELSE.
-        cs_result-status = gc_status_ready.
-      ENDIF.
+   IF lv_has_error = abap_true
+   OR ev_material_document IS INITIAL.
+
+    cs_result-status = gc_status_error.
+
+    IF cs_result-message IS INITIAL.
+      cs_result-message = 'BAPI did not create Material Document'.
     ENDIF.
+
+    CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'.
+
+ELSE.
+
+    CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+      EXPORTING
+        wait = 'X'.
+
+    cs_result-status = gc_status_success.
+
+ENDIF.
   ENDMETHOD.
 
 
