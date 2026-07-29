@@ -21,6 +21,7 @@ define root view entity zmm_i_gr_h
   message                   as Message,
   material_document         as MaterialDocument,
   mat_doc_year              as MaterialDocumentYear,
+  filename as Filename,
   log_handle                as LogHandle,
   @Semantics.systemDateTime.createdAt: true
   created_at                as CreatedAt,

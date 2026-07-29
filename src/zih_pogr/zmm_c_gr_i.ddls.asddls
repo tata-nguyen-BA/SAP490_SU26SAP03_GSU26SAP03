@@ -13,6 +13,7 @@ define view entity zmm_c_gr_i
   PoItemText,
   Material,
   Plant,
+  Batch,
 
   ReceiveQty,
   Unit,
@@ -25,6 +26,7 @@ define view entity zmm_c_gr_i
   Message,
   MaterialDocument,
   MaterialDocumentItem,
+  MaterialDocumentYear,
 
   _header : redirected to parent zmm_c_gr_h
 }

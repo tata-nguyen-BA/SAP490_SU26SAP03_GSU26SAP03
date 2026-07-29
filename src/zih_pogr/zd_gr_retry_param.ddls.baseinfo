@@ -2,11 +2,7 @@
 "BASEINFO":
 {
 "FROM":
-[
-"EKKO",
-"EKPO",
-"MARC"
-],
+[],
 "ASSOCIATED":
 [],
 "BASE":

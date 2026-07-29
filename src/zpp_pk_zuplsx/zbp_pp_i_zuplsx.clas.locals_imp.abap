@@ -28,10 +28,26 @@ CLASS lhc_UploadLog IMPLEMENTATION.
 
   METHOD uploadFromExcel.
 
+*"ThaoNTT add authority
+*    AUTHORITY-CHECK OBJECT 'Z_UPLOAD'
+*      ID 'ZUPLMOD' FIELD 'PP'
+*      ID 'ACTVT'   FIELD '01'
+*      ID 'WERKS'   DUMMY.
+*    IF sy-subrc <> 0.
+*      LOOP AT keys INTO DATA(ls_auth_key).
+*        APPEND VALUE #( %cid   = ls_auth_key-%cid
+*                        %param = VALUE #( Type    = 'Error'
+*                                          Message = 'Bạn không có quyền upload lệnh sản xuất' ) ) TO result.
+*      ENDLOOP.
+*      RETURN.
+*    ENDIF.
+*"End add
+
     LOOP AT keys INTO DATA(ls_key).
 
       " --- 1. Parse JSON ---
       DATA ls_request TYPE zpp_if_zuplsx_types=>ts_post_request.
+
       CLEAR ls_request.
       TRY.
           xco_cp_json=>data->from_string( ls_key-%param-PayloadJson )->apply(
@@ -44,6 +60,19 @@ CLASS lhc_UploadLog IMPLEMENTATION.
                         ) TO result.
           CONTINUE.
       ENDTRY.
+
+"ThaoNTT add
+" --- 1b. Kiểm quyền theo email từ Work Zone ---
+      DATA(lv_auth_err) = zih_cl_auth=>check(
+        iv_email      = ls_request-useremail
+        iv_process_id = zih_cl_auth=>gc_mod_pp
+        iv_actvt      = zih_cl_auth=>gc_act_post ).
+      IF lv_auth_err IS NOT INITIAL.
+        APPEND VALUE #( %cid   = ls_key-%cid
+                        %param = VALUE #( Type    = 'Error'
+                                          Message = lv_auth_err ) ) TO result.
+        CONTINUE.
+      ENDIF.
 
       " --- 2. Validate (chỉ đọc/convert, không modify -> hợp lệ) ---
       DATA(lo_validator) = NEW zpp_cl_zuplsx_validator( is_request = ls_request ).

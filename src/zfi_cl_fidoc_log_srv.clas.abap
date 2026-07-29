@@ -5,6 +5,11 @@
 "!   <li>Tách biệt tham số IV_IS_UPDATE để làm rõ sự phụ thuộc (Explicit Dependency), thay vì dùng biến ngầm từ God Class.</li>
 "!   <li>Sử dụng lệnh MODIFY để hỗ trợ cơ chế Upsert (Cập nhật nếu tồn tại, thêm mới nếu chưa), phù hợp với logic Reposting.</li>
 "! </ul>
+"!
+"! <strong>CẢNH BÁO BẢO TRÌ (27/07/2026):</strong> CORRESPONDING khớp field THEO TÊN
+"! và bỏ qua âm thầm field không cùng tên. Hiện có 7 chỗ lệch tên giữa
+"! ts_item và ZFI_TB_UPLOAD_I, trong đó IDLINE là KEY của bảng nên hậu quả rất nặng
+"! (xem method SAVE). Thêm field mới vào ts_item thì phải kiểm tên khớp với bảng.
 CLASS zfi_cl_fidoc_log_srv DEFINITION
   PUBLIC FINAL
   CREATE PUBLIC.
@@ -48,8 +53,25 @@ CLASS zfi_cl_fidoc_log_srv IMPLEMENTATION.
       ls_item_log          = CORRESPONDING #( ls_item ).
       ls_item_log-filename = ls_header_log-filename.
       ls_item_log-id_doc   = ls_header_log-id_doc.
+
+      "==================================================================
+      " FIX QUAN TRỌNG: ts_item đặt tên IDLINE (không gạch dưới) còn bảng
+      " log đặt ID_LINE -> CORRESPONDING không nhặt -> ID_LINE luôn = 0.
+      " ID_LINE là KEY của bảng, nên MODIFY của mọi dòng trong cùng 1
+      " chứng từ đều trúng cùng 1 key (filename, id_doc, 0) và GHI ĐÈ LÊN
+      " NHAU -> log chỉ còn giữ DÒNG CUỐI của mỗi chứng từ.
+      " Hệ quả trước khi vá: mất dòng bút toán trong log, LineCount và
+      " TotalAmountLC của app analytics sai, dialog "Bút toán" chỉ hiện 1 dòng.
+      "==================================================================
+      ls_item_log-id_line = ls_item-idline.
+
+      " ts_item: INVOICEREFFISCALYEAR / bảng: INVOICEFISCALYEAR -> gán tay
+      ls_item_log-invoicefiscalyear = ls_item-invoicereffiscalyear.
+
       MODIFY zfi_tb_upload_i FROM @ls_item_log.
     ENDLOOP.
   ENDMETHOD.
 
 ENDCLASS.
+
+

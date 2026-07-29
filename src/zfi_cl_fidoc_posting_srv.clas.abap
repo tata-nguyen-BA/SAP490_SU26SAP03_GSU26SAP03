@@ -204,7 +204,8 @@ CLASS zfi_cl_fidoc_posting_srv IMPLEMENTATION.
           DATA(lo_http_wrap) = NEW zfi_cl_fidoc_http_wrap( ).
           lv_xml_response = lo_http_wrap->send_soap(
               iv_destination = CONV rfcdest( 'ZSAP_LOOPBACK' )
-              iv_uri_path    = |/sap/bc/srt/xip/sap/journalentrycreaterequestconfi/324/zbnd_je_create/zbinding_je_create?sap-client=324|
+              iv_uri_path    = |/sap/bc/srt/xip/sap/journalentrycreaterequestconfi/{ sy-mandt }| &&
+                               |/zbnd_je_create/zbinding_je_create?sap-client={ sy-mandt }|
               iv_payload     = lv_xml_request ).
 
         CATCH cx_web_http_client_error INTO DATA(lx_http).
@@ -334,7 +335,7 @@ CLASS zfi_cl_fidoc_posting_srv IMPLEMENTATION.
 
       lv_itemno += 1.
 
-      DATA(lv_amount)  = ls_item-amountindoumentcurrency * 100.
+      DATA(lv_amount)  = ls_item-amountindoumentcurrency.
       DATA(lv_dc_code) = ls_pk-DebitCreditCode.
 
       " Quy tắc dấu thống nhất (verify từ 0090001687 thường + 0090001685 negative):
@@ -366,7 +367,7 @@ CLASS zfi_cl_fidoc_posting_srv IMPLEMENTATION.
 
       rv_xml &&=
         |<AmountInTransactionCurrency currencyCode="{ lv_currency }">|
-        && |{ lv_amount }</AmountInTransactionCurrency>|.
+        && |{ lv_amount NUMBER = RAW }</AmountInTransactionCurrency>|.
 
       rv_xml &&= |<DebitCreditCode>{ lv_dc_code }</DebitCreditCode>|.
       IF ls_item-negativeposting IS NOT INITIAL.

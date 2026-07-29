@@ -25,6 +25,7 @@ INTERFACE zpp_if_zuplsx_types PUBLIC.
            filename TYPE string,
            testmode TYPE string,
            rows     TYPE tt_row_request,
+           useremail TYPE string,
          END OF ts_post_request.
 
   "============================================================

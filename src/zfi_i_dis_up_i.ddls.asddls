@@ -30,11 +30,29 @@ define view entity ZFI_I_DIS_UP_I as select from    zfi_tb_upload_i
       @EndUserText.label: 'Document Type'
       _AccountingDocument.documenttype         as Documenttype,
 
+      // ===== MỚI: 3 field header cần cho việc dựng lại file template =====
+      @EndUserText.label: 'Document Date'
+      _AccountingDocument.documentdate         as Documentdate,
+
+      @EndUserText.label: 'Posting Date'
+      _AccountingDocument.postingdate          as Postingdate,
+
+      @EndUserText.label: 'Header Text'
+      _AccountingDocument.headertext           as Headertext,
+      // ===================================================================
+
       @EndUserText.label: 'Currency'
       _AccountingDocument.currency             as Currency,
 
-      @EndUserText.label: 'Exchange Rate'
+      @EndUserText.label: 'Exchange Rate (header - LUON RONG, xem ItemExchangerate)'
       _AccountingDocument.exchangerate         as Exchangerate,
+
+      // ===== MỚI: tỷ giá THẬT nằm ở dòng item, không phải header =====
+      // ts_data (header) không có field exchangerate -> zfi_tb_upload-exchangerate
+      // không bao giờ được CORRESPONDING điền. Giá trị thật do validator map vào
+      // ts_item-exchangerate -> zfi_tb_upload_i-exchangerate.
+      @EndUserText.label: 'Exchange Rate (dòng - giá trị upload)'
+      zfi_tb_upload_i.exchangerate             as ItemExchangerate,
 
       @EndUserText.label: 'Reference Document'
       _AccountingDocument.referencedoc         as Referencedoc,
@@ -100,6 +118,11 @@ define view entity ZFI_I_DIS_UP_I as select from    zfi_tb_upload_i
 
       @EndUserText.label: 'Internal Order'
       zfi_tb_upload_i.internalorder,
+
+      // ===== MỚI =====
+      @EndUserText.label: 'WBS Element'
+      zfi_tb_upload_i.wbselement,
+      // ===============
 
       @EndUserText.label: 'Asset Value Date'
       zfi_tb_upload_i.assetvaluedate,
@@ -167,6 +190,11 @@ define view entity ZFI_I_DIS_UP_I as select from    zfi_tb_upload_i
       @EndUserText.label: 'Reference 1'
       zfi_tb_upload_i.ref1,
 
+      // ===== MỚI =====
+      @EndUserText.label: 'Reference 2'
+      zfi_tb_upload_i.ref2,
+      // ===============
+
       @EndUserText.label: 'Reference 3'
       zfi_tb_upload_i.ref3,
 
@@ -184,6 +212,14 @@ define view entity ZFI_I_DIS_UP_I as select from    zfi_tb_upload_i
 
       @EndUserText.label: 'Name 2 (Mã vãng lai)'
       zfi_tb_upload_i.name2,
+
+      // ===== MỚI =====
+      @EndUserText.label: 'Name 3 (Mã vãng lai)'
+      zfi_tb_upload_i.name3,
+
+      @EndUserText.label: 'Name 4 (Mã vãng lai)'
+      zfi_tb_upload_i.name4,
+      // ===============
 
       @EndUserText.label: 'City (Mã vãng lai)'
       zfi_tb_upload_i.city,
@@ -209,6 +245,29 @@ define view entity ZFI_I_DIS_UP_I as select from    zfi_tb_upload_i
 
       @EndUserText.label: 'VAT Number'
       zfi_tb_upload_i.mst,
+
+      // ===== MỚI: 6 field đối tượng nhận tiền =====
+      @EndUserText.label: 'Name 1 (Đối tượng nhận tiền)'
+      zfi_tb_upload_i.namecus1,
+
+      @EndUserText.label: 'Name 2 (Đối tượng nhận tiền)'
+      zfi_tb_upload_i.namecus2,
+
+      @EndUserText.label: 'Name 3 (Đối tượng nhận tiền)'
+      zfi_tb_upload_i.namecus3,
+
+      @EndUserText.label: 'Name 4 (Đối tượng nhận tiền)'
+      zfi_tb_upload_i.namecus4,
+
+      @EndUserText.label: 'VAT Reg. No. (Đối tượng nhận tiền)'
+      zfi_tb_upload_i.mstcus,
+
+      @EndUserText.label: 'City (Đối tượng nhận tiền)'
+      zfi_tb_upload_i.citycus,
+
+      @EndUserText.label: 'Country (Đối tượng nhận tiền)'
+      zfi_tb_upload_i.countrycus,
+      // ============================================
 
       @EndUserText.label: 'Name 1 (Individual Payee)'
       zfi_tb_upload_i.hotennc1,
@@ -257,6 +316,29 @@ define view entity ZFI_I_DIS_UP_I as select from    zfi_tb_upload_i
 
       @EndUserText.label: 'Order ID'
       zfi_tb_upload_i.orderid,
+
+      // ═════ PHASE 2: 6 field mới thêm vào ZFI_TB_UPLOAD_I ═════
+      // Validator ĐÃ map sẵn 6 field này vào ts_item (xem ZFI_CL_FIDOC_VALIDATOR
+      // ~dòng 117-201), chỉ thiếu cột trong bảng nên CORRESPONDING rơi mất.
+      // Thêm cột đúng tên là log tự đầy, không sửa 1 dòng ABAP nào.
+      @EndUserText.label: 'Is Negative Posting'
+      zfi_tb_upload_i.negativeposting,
+
+      @EndUserText.label: 'Net Due Date'
+      zfi_tb_upload_i.netduedate,
+
+      @EndUserText.label: 'Plant'
+      zfi_tb_upload_i.plant,
+
+      @EndUserText.label: 'Sales Organization'
+      zfi_tb_upload_i.salesorganization,
+
+      @EndUserText.label: 'Base Unit'
+      zfi_tb_upload_i.baseunit,
+
+      @EndUserText.label: 'Country GL'
+      zfi_tb_upload_i.countrygl,
+      // ═════════════════════════════════════════════════════════
 
       _header
 }

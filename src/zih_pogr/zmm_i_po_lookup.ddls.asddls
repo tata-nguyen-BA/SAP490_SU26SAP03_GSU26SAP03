@@ -1,14 +1,14 @@
-@EndUserText.label: 'PO Lookup for GR Validation'
-@AccessControl.authorizationCheck: #NOT_REQUIRED
-
 define view entity zmm_i_po_lookup
-  as select from ekpo as poi
-    inner join   ekko as po on po.ebeln = poi.ebeln
+  as select from    ekpo as poi
+    inner join      ekko as po on po.ebeln = poi.ebeln
+    left outer join marc as mc on  mc.matnr = poi.matnr
+                               and mc.werks = poi.werks
 {
   key poi.ebeln as PurchaseOrder,
   key poi.ebelp as PurchaseOrderItem,
 
       po.lifnr  as Supplier,
+      po.bukrs  as CompanyCode,
       po.bsart  as PurchaseOrderType,
       po.frgrl  as ReleaseBlockIndicator,
       poi.matnr as Material,
@@ -17,7 +17,7 @@ define view entity zmm_i_po_lookup
       poi.menge as OrderQuantity,
       poi.meins as OrderUnit,
       poi.txz01 as ShortText,
-
+      mc.xchpf  as BatchManaged,
 
       poi.loekz as DeletionCode,
       poi.elikz as DeliveryIsCompleted,

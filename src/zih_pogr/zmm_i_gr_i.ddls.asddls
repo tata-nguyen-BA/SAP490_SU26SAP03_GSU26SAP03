@@ -19,6 +19,7 @@ define view entity zmm_i_gr_i
 
       gritem.material          as Material,
       gritem.plant             as Plant,
+      gritem.batch as Batch,
 
       gritem.receive_qty       as ReceiveQty,
       gritem.unit              as Unit,
@@ -37,6 +38,8 @@ define view entity zmm_i_gr_i
 
       gritem.material_document as MaterialDocument,
       gritem.mat_doc_item      as MaterialDocumentItem,
+      gritem.mat_doc_year      as MaterialDocumentYear,
+
 
       _header
 }

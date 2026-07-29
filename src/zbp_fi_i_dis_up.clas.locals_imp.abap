@@ -27,6 +27,9 @@ CLASS lhc_Log IMPLEMENTATION.
   METHOD lock.
   ENDMETHOD.
 
+
+
+
   METHOD uploadFromExcel.
     " ============================================================
     " Toàn bộ chứng từ đi qua SOAP (post_soap), KHÔNG dùng EML i_journalentrytp.
@@ -34,6 +37,22 @@ CLASS lhc_Log IMPLEMENTATION.
     " (BEHAVIOR_STATEMENT_ILLEGAL). SOAP loopback chạy NGOÀI RAP framework
     " nên hợp lệ trong action handler.
     " ============================================================
+
+*    "ThaoNTT add authority
+*    " Chỉ người có quyền upload FI mới được chạy; người chỉ có quyền xem bị chặn tại đây
+*    AUTHORITY-CHECK OBJECT 'Z_UPLOAD'
+*      ID 'ZUPLMOD' FIELD 'FI'
+*      ID 'ACTVT'   FIELD '01'
+*      ID 'WERKS'   DUMMY.
+*    IF sy-subrc <> 0.
+*      LOOP AT keys INTO DATA(ls_auth_key).
+*        APPEND VALUE #( %cid   = ls_auth_key-%cid
+*                        %param = VALUE #( Type    = 'Error'
+*                                          Message = 'Bạn không có quyền upload chứng từ FI' ) ) TO result.
+*      ENDLOOP.
+*      RETURN.
+*    ENDIF.
+*    "End add
 
     LOOP AT keys INTO DATA(ls_key).
 
@@ -54,6 +73,18 @@ CLASS lhc_Log IMPLEMENTATION.
                         ) TO result.
           CONTINUE.
       ENDTRY.
+
+" --- 1b. Kiểm quyền theo email từ Work Zone ---
+      DATA(lv_auth_err) = zih_cl_auth=>check(
+        iv_email      = ls_request-useremail
+        iv_process_id = zih_cl_auth=>gc_mod_fi
+        iv_actvt      = zih_cl_auth=>gc_act_post ).
+      IF lv_auth_err IS NOT INITIAL.
+        APPEND VALUE #( %cid   = ls_key-%cid
+                        %param = VALUE #( Type    = 'Error'
+                                          Message = lv_auth_err ) ) TO result.
+        CONTINUE.
+      ENDIF.
 
       " --- 2. Validate (chỉ đọc/convert, không modify -> hợp lệ) ---
       DATA(lo_validator) = NEW zfi_cl_fidoc_validator( is_request = ls_request ).

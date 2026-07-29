@@ -102,7 +102,7 @@ INTERFACE zfi_if_fidoc_types PUBLIC.
            currency     TYPE string,
            headertext   TYPE string,
            referencedoc TYPE string,
-           headerref1   TYPE string,
+           headerref_1  TYPE string,
            to_item      TYPE STANDARD TABLE OF ts_doc_item_request WITH EMPTY KEY,
          END OF ts_doc_request.
 
@@ -110,6 +110,7 @@ INTERFACE zfi_if_fidoc_types PUBLIC.
            isupdate TYPE string,
            testmode TYPE string,
            filename TYPE string,
+           useremail TYPE string,
            doc      TYPE STANDARD TABLE OF ts_doc_request WITH EMPTY KEY,
          END OF ts_post_request.
 

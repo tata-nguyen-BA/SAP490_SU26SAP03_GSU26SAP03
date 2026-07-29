@@ -21,6 +21,14 @@ CLASS zfi_cl_fidoc_validator DEFINITION
                 et_item_errors       TYPE zfi_if_fidoc_types=>tt_results
       RETURNING VALUE(rv_item_valid) TYPE abap_bool.
 
+    "! Đổi chuỗi số tiền từ Excel sang số, KHÔNG phụ thuộc Decimal Notation
+    "! của user trong SU3. Nhận cả 1.000,50 (VN/DE) lẫn 1,000.50 (US).
+    "! Cùng quy tắc với UploadValidator.parseNumber ở frontend để client và
+    "! backend không hiểu khác nhau trên cùng một chuỗi.
+    CLASS-METHODS conv_amount
+      IMPORTING iv_value         TYPE string
+      RETURNING VALUE(rv_amount) TYPE fins_vwcur12.
+
 ENDCLASS.
 
 
@@ -46,7 +54,7 @@ CLASS zfi_cl_fidoc_validator IMPLEMENTATION.
                                                          currency        = ls_doc-currency
                                                          headertext      = ls_doc-headertext
                                                          referencedoc    = ls_doc-referencedoc
-                                                         headerref1      = ls_doc-headerref1 ).
+                                                         headerref1      = ls_doc-headerref_1 ).
 
       LOOP AT ls_doc-to_item INTO DATA(ls_raw_item).
         ls_raw_item-AccountingDocumentItem = sy-tabix.
@@ -101,17 +109,32 @@ CLASS zfi_cl_fidoc_validator IMPLEMENTATION.
       RETURN.
     ENDIF.
 
-    DATA lv_doc_cur   TYPE i VALUE 1.
-    DATA lv_local_cur TYPE i VALUE 100.
-
-    IF is_raw-transactioncurrency = 'VND'.
-      lv_doc_cur = 100.
-    ENDIF.
-
-    DATA(lv_amount_local)   = CONV fins_vwcur12( is_raw-amountinlocalcurrency / lv_local_cur ).
-    DATA(lv_local_tax_base) = CONV fins_vwcur12( is_raw-localtaxbaseamount / lv_local_cur ).
-    DATA(lv_amount_doc_cur) = CONV fins_vwcur12( is_raw-amountindoumentcurrency / lv_doc_cur ).
-    DATA(lv_tax_base_doc)   = CONV fins_vwcur12( is_raw-taxbaseamount / lv_doc_cur ).
+    "═══════════════════════════════════════════════════════════════════════
+    " ĐỔI SỐ TIỀN (sửa 28/07/2026)
+    "
+    " Code cũ:
+    "     DATA lv_doc_cur   TYPE i VALUE 1.
+    "     DATA lv_local_cur TYPE i VALUE 100.
+    "     IF is_raw-transactioncurrency = 'VND'. lv_doc_cur = 100. ENDIF.
+    "     ... CONV fins_vwcur12( is_raw-amountindoumentcurrency / lv_doc_cur )
+    "
+    " is_raw-* là STRING. ABAP đổi string sang số theo Decimal Notation của
+    " user trong SU3. DEV-CLH đang để 1.234.567,89 nên dấu chấm bị hiểu là
+    " phân cách hàng nghìn: "1000.00" thành 100000.
+    "
+    " Hai hằng số chia kia là workaround cho đúng hiện tượng đó, nhưng chỉ
+    " phủ 3/4 trường hợp: doc amount của currency KHÁC VND chia cho 1 nên
+    " không được bù -> mọi chứng từ USD/EUR đã post đều gấp 100 lần.
+    " Bằng chứng: FB03 chứng từ 100000036, file ghi 1000.00, SAP hiện
+    " 100.000,00 EUR.
+    "
+    " Cách sửa: chuẩn hóa chuỗi tường minh bằng conv_amount, không phụ thuộc
+    " SU3 nữa -> BỎ luôn cả hai divisor.
+    "═══════════════════════════════════════════════════════════════════════
+    DATA(lv_amount_local)   = conv_amount( CONV string( is_raw-amountinlocalcurrency ) ).
+    DATA(lv_local_tax_base) = conv_amount( CONV string( is_raw-localtaxbaseamount ) ).
+    DATA(lv_amount_doc_cur) = conv_amount( CONV string( is_raw-amountindoumentcurrency ) ).
+    DATA(lv_tax_base_doc)   = conv_amount( CONV string( is_raw-taxbaseamount ) ).
 
     TRY.
         es_item = VALUE #( idline                  = is_raw-idline
@@ -139,7 +162,13 @@ CLASS zfi_cl_fidoc_validator IMPLEMENTATION.
                            assettransactiontype    = is_raw-assettransactiontype
                            companycodecurrency     = is_raw-companycodecurrency
                            transactioncurrency     = is_raw-transactioncurrency
+
+                           " CHƯA SỬA - cùng loại lỗi với số tiền: string sang
+                           " DEC(13,5) vẫn theo SU3. Phải quyết chung với dòng
+                           " ls_item-exchangerate /= 1000 trong ZFI_CL_FIDOC_MAPPER,
+                           " sửa riêng lẻ là lệch nhau. Xem FIX3_amount_conversion.md
                            exchangerate            = is_raw-exchangerate
+
                            assignment              = is_raw-assignment
                            businessarea            = is_raw-businessarea
                            costcenter              = is_raw-costcenter
@@ -180,7 +209,11 @@ CLASS zfi_cl_fidoc_validator IMPLEMENTATION.
                            countrycus              = is_raw-countrycus
                            mstcus                  = is_raw-mstcus
                            vatregno                = is_raw-vatregno
+
+                           " CHƯA SỬA - cùng loại lỗi: string sang MENGE_D(3 thập
+                           " phân) vẫn theo SU3. Ít dùng nên tách ra sửa sau.
                            quantity                = is_raw-quantity
+
                            alternativepayee        = is_raw-alternativepayee
                            tennccxuathd            = is_raw-tennccxuathd
                            mstnccxuathd            = is_raw-mstnccxuathd
@@ -209,4 +242,78 @@ CLASS zfi_cl_fidoc_validator IMPLEMENTATION.
         rv_item_valid = abap_false.
     ENDTRY.
   ENDMETHOD.
+
+
+  METHOD conv_amount.
+    DATA lv_str  TYPE string.
+    DATA lv_int  TYPE string.
+    DATA lv_frac TYPE string.
+    DATA lv_neg  TYPE abap_bool.
+    DATA lv_num  TYPE decfloat34.
+
+    rv_amount = 0.
+
+    lv_str = iv_value.
+    CONDENSE lv_str NO-GAPS.
+    IF lv_str IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    IF lv_str CS '-'.
+      lv_neg = abap_true.
+      REPLACE ALL OCCURRENCES OF '-' IN lv_str WITH ``.
+    ENDIF.
+    REPLACE ALL OCCURRENCES OF '+' IN lv_str WITH ``.
+
+    DATA(lv_dot)   = find( val = lv_str sub = '.' occ = -1 ).
+    DATA(lv_comma) = find( val = lv_str sub = ',' occ = -1 ).
+
+    IF lv_dot >= 0 AND lv_comma >= 0.
+      IF lv_dot > lv_comma.
+        " 1,000.50 -> dấu phẩy là phân cách hàng nghìn
+        REPLACE ALL OCCURRENCES OF ',' IN lv_str WITH ``.
+      ELSE.
+        " 1.000,50 -> dấu chấm là phân cách hàng nghìn
+        REPLACE ALL OCCURRENCES OF '.' IN lv_str WITH ``.
+        REPLACE ALL OCCURRENCES OF ',' IN lv_str WITH '.'.
+      ENDIF.
+
+    ELSEIF lv_comma >= 0.
+      IF strlen( lv_str ) - lv_comma - 1 = 3.
+        REPLACE ALL OCCURRENCES OF ',' IN lv_str WITH ``.   " 1,234 = một nghìn hai
+      ELSE.
+        REPLACE ALL OCCURRENCES OF ',' IN lv_str WITH '.'.  " 1,5 = một phẩy năm
+      ENDIF.
+
+    ELSEIF lv_dot >= 0.
+      IF strlen( lv_str ) - lv_dot - 1 = 3.
+        REPLACE ALL OCCURRENCES OF '.' IN lv_str WITH ``.   " 1.234 = một nghìn hai
+      ENDIF.
+    ENDIF.
+
+    " Tách phần nguyên và phần thập phân rồi cộng lại.
+    " Hai chuỗi này chỉ còn chữ số nên CONV không còn phụ thuộc SU3.
+    SPLIT lv_str AT '.' INTO lv_int lv_frac.
+    IF lv_int IS INITIAL.
+      lv_int = '0'.
+    ENDIF.
+
+    TRY.
+        lv_num = CONV decfloat34( lv_int ).
+        IF lv_frac IS NOT INITIAL.
+          lv_num = lv_num + CONV decfloat34( lv_frac ) / ipow( base = 10 exp = strlen( lv_frac ) ).
+        ENDIF.
+      CATCH cx_sy_conversion_no_number.
+        RETURN.
+    ENDTRY.
+
+    IF lv_neg = abap_true.
+      lv_num = lv_num * -1.
+    ENDIF.
+
+    rv_amount = lv_num.
+  ENDMETHOD.
+
+
 ENDCLASS.
+

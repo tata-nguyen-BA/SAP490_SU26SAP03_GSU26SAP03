@@ -8,20 +8,21 @@ define root view entity zmm_c_gr_h
   as projection on zmm_i_gr_h
 {
   key GrNumber,
-  BatchId,
-  DocumentDate,
-  MovementType,
-  Testmode,
-  Status,
-  StatusCriticality,
-  Message,
-  MaterialDocument,
-  MaterialDocumentYear,
-  CreatedAt,
-  CreatedBy,
-  LastChangedAt,
-  LastChangedBy,
-  LocalLastChangedAt,
+      BatchId,
+      DocumentDate,
+      MovementType,
+      Testmode,
+      Status,
+      StatusCriticality,
+      Message,
+      MaterialDocument,
+      MaterialDocumentYear,
+      Filename,
+      CreatedAt,
+      CreatedBy,
+      LastChangedAt,
+      LastChangedBy,
+      LocalLastChangedAt,
 
-  _items : redirected to composition child zmm_c_gr_i
+      _items : redirected to composition child zmm_c_gr_i
 }
