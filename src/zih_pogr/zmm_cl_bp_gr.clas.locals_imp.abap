@@ -21,6 +21,10 @@ CLASS lhc_gr_upload DEFINITION INHERITING FROM cl_abap_behavior_handler.
       IMPORTING keys   FOR ACTION GrUpload~getMyAuth
       RESULT    result.
 
+    METHODS create_from_po FOR MODIFY
+      IMPORTING keys   FOR ACTION GrUpload~createFromPO
+      RESULT    result.
+
 ENDCLASS.
 
 CLASS lhc_gr_upload IMPLEMENTATION.
@@ -57,6 +61,47 @@ CLASS lhc_gr_upload IMPLEMENTATION.
     ENDIF.
 
     DATA ls_result TYPE STRUCTURE FOR ACTION RESULT zmm_i_gr_h~uploadExcel.
+    ls_result-%cid   = ls_key-%cid.
+    ls_result-%param = VALUE zd_gr_upload_result(
+      batch_id      = ls_srv_result-batch_id
+      total_count   = ls_srv_result-total_count
+      success_count = ls_srv_result-success_count
+      error_count   = ls_srv_result-error_count
+      status        = ls_srv_result-status
+      message       = ls_srv_result-message
+      items_json    = ls_srv_result-items_json ).
+    APPEND ls_result TO result.
+  ENDMETHOD.
+
+  METHOD create_from_po.
+    IF keys IS INITIAL. RETURN. ENDIF.
+    DATA(ls_key) = keys[ 1 ].
+
+    DATA ls_param TYPE zd_gr_create_po_param.
+    ls_param = ls_key-%param.
+
+    DATA(ls_srv_result) = zmm_cl_gr_srv=>create_from_po(
+      iv_po_number        = ls_param-po_number
+      iv_po_item          = ls_param-po_item
+      iv_gr_number        = ls_param-gr_number
+      iv_document_date    = ls_param-document_date
+      iv_receive_qty      = ls_param-receive_qty
+      iv_unit             = ls_param-unit
+      iv_storage_location = ls_param-storage_location
+      iv_batch            = ls_param-batch
+      iv_user_email       = CONV string( ls_param-user_email ) ).
+
+    IF ls_srv_result-message IS NOT INITIAL.
+      APPEND VALUE #(
+        %msg = new_message_with_text(
+                 severity = COND #( WHEN ls_srv_result-status = zmm_cl_gr_srv=>gc_status_error
+                                    THEN if_abap_behv_message=>severity-error
+                                    ELSE if_abap_behv_message=>severity-warning )
+                 text     = ls_srv_result-message ) ) TO reported-grupload.
+    ENDIF.
+
+    DATA ls_result TYPE STRUCTURE FOR ACTION RESULT zmm_i_gr_h~createFromPO.
+    ls_result-%cid   = ls_key-%cid.
     ls_result-%param = VALUE zd_gr_upload_result(
       batch_id      = ls_srv_result-batch_id
       total_count   = ls_srv_result-total_count
@@ -67,7 +112,6 @@ CLASS lhc_gr_upload IMPLEMENTATION.
     APPEND ls_result TO result.
   ENDMETHOD.
 
-
   METHOD retry_post.
 
 
@@ -75,31 +119,18 @@ CLASS lhc_gr_upload IMPLEMENTATION.
     " Dùng chung cho cả "Post ngay" (từ nháp R) và "Retry" (khi lỗi E)
     LOOP AT keys INTO DATA(ls_key).
 
-*      AUTHORITY-CHECK OBJECT 'Z_UPLOAD'
-*    ID 'ZUPLMOD' FIELD 'GR'
-*    ID 'ACTVT'   FIELD '01'
-*    ID 'WERKS'   DUMMY.
-*      IF sy-subrc <> 0.
+*      DATA(lv_auth_err) = zih_cl_auth=>check(
+*  iv_email      = CONV string( ls_key-%param-user_email )
+*  iv_process_id = zih_cl_auth=>gc_mod_gr
+*  iv_actvt      = zih_cl_auth=>gc_act_post ).
+*      IF lv_auth_err IS NOT INITIAL.
 *        APPEND VALUE #( %tky = ls_key-%tky ) TO failed-grupload.
 *        APPEND VALUE #( %tky = ls_key-%tky
 *                        %msg = new_message_with_text(
 *                                 severity = if_abap_behv_message=>severity-error
-*                                 text     = 'Bạn không có quyền post phiếu nhập kho' ) ) TO reported-grupload.
+*                                 text     = lv_auth_err ) ) TO reported-grupload.
 *        CONTINUE.
 *      ENDIF.
-
-      DATA(lv_auth_err) = zih_cl_auth=>check(
-  iv_email      = CONV string( ls_key-%param-user_email )
-  iv_process_id = zih_cl_auth=>gc_mod_gr
-  iv_actvt      = zih_cl_auth=>gc_act_post ).
-      IF lv_auth_err IS NOT INITIAL.
-        APPEND VALUE #( %tky = ls_key-%tky ) TO failed-grupload.
-        APPEND VALUE #( %tky = ls_key-%tky
-                        %msg = new_message_with_text(
-                                 severity = if_abap_behv_message=>severity-error
-                                 text     = lv_auth_err ) ) TO reported-grupload.
-        CONTINUE.
-      ENDIF.
 
 
       READ ENTITIES OF zmm_i_gr_h IN LOCAL MODE
@@ -176,18 +207,18 @@ CLASS lhc_gr_upload IMPLEMENTATION.
     DATA(lv_email) = CONV string( ls_key-%param-user_email ).
 
     DATA ls_auth TYPE zd_gr_my_auth.
-    ls_auth-can_upload_fi = COND #( WHEN zih_cl_auth=>check( iv_email = lv_email
-                                          iv_process_id = zih_cl_auth=>gc_mod_fi
-                                          iv_actvt = zih_cl_auth=>gc_act_post ) IS INITIAL
-                                    THEN abap_true ELSE abap_false ).
-    ls_auth-can_upload_pp = COND #( WHEN zih_cl_auth=>check( iv_email = lv_email
-                                          iv_process_id = zih_cl_auth=>gc_mod_pp
-                                          iv_actvt = zih_cl_auth=>gc_act_post ) IS INITIAL
-                                    THEN abap_true ELSE abap_false ).
-    ls_auth-can_upload_gr = COND #( WHEN zih_cl_auth=>check( iv_email = lv_email
-                                          iv_process_id = zih_cl_auth=>gc_mod_gr
-                                          iv_actvt = zih_cl_auth=>gc_act_post ) IS INITIAL
-                                    THEN abap_true ELSE abap_false ).
+*    ls_auth-can_upload_fi = COND #( WHEN zih_cl_auth=>check( iv_email = lv_email
+*                                          iv_process_id = zih_cl_auth=>gc_mod_fi
+*                                          iv_actvt = zih_cl_auth=>gc_act_post ) IS INITIAL
+*                                    THEN abap_true ELSE abap_false ).
+*    ls_auth-can_upload_pp = COND #( WHEN zih_cl_auth=>check( iv_email = lv_email
+*                                          iv_process_id = zih_cl_auth=>gc_mod_pp
+*                                          iv_actvt = zih_cl_auth=>gc_act_post ) IS INITIAL
+*                                    THEN abap_true ELSE abap_false ).
+*    ls_auth-can_upload_gr = COND #( WHEN zih_cl_auth=>check( iv_email = lv_email
+*                                          iv_process_id = zih_cl_auth=>gc_mod_gr
+*                                          iv_actvt = zih_cl_auth=>gc_act_post ) IS INITIAL
+*                                    THEN abap_true ELSE abap_false ).
 
     DATA ls_result TYPE STRUCTURE FOR ACTION RESULT zmm_i_gr_h~getMyAuth.
     ls_result-%cid   = ls_key-%cid.

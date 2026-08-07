@@ -93,6 +93,24 @@ CLASS zpp_cl_zuplsx_validator IMPLEMENTATION.
                  TO et_errors.
           CONTINUE.
         ENDIF.
+      ELSE.
+        " Template ghi "ĐVT, trống = lấy theo material". Không tự lấy thì
+        " BAPI vẫn tạo được lệnh (SAP tự suy từ material master), nhưng
+        " bảng log mất thông tin -> cột Unit trên báo cáo trống và file
+        " dựng lại từ log cũng thiếu cột này.
+        SELECT SINGLE meins FROM mara
+          WHERE matnr = @ls_row-material
+          INTO @ls_row-base_unit.
+
+        IF sy-subrc <> 0.
+          rv_has_error = abap_true.
+          APPEND VALUE #( client_row_id = ls_row-client_row_id
+                          id_doc        = ls_row-id_doc
+                          type          = 'Error'
+                          message       = |ID { ls_raw-id_doc }: Material "{ ls_row-material }" không tồn tại nên không lấy được đơn vị tính.| )
+                 TO et_errors.
+          CONTINUE.
+        ENDIF.
       ENDIF.
 
       IF ls_raw-sale_order IS NOT INITIAL.

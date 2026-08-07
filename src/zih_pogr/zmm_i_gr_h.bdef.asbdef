@@ -15,6 +15,10 @@ etag master LastChangedAt
 
   action ( features : instance ) retryPost parameter ZD_GR_RETRY_PARAM;
 
+  static action createFromPO
+    parameter ZD_GR_CREATE_PO_PARAM
+    result [1] ZD_GR_UPLOAD_RESULT;
+
   field ( readonly )
   GrNumber, BatchId, Status, Message,
   MaterialDocument, MaterialDocumentYear,

@@ -109,28 +109,6 @@ CLASS zfi_cl_fidoc_validator IMPLEMENTATION.
       RETURN.
     ENDIF.
 
-    "═══════════════════════════════════════════════════════════════════════
-    " ĐỔI SỐ TIỀN (sửa 28/07/2026)
-    "
-    " Code cũ:
-    "     DATA lv_doc_cur   TYPE i VALUE 1.
-    "     DATA lv_local_cur TYPE i VALUE 100.
-    "     IF is_raw-transactioncurrency = 'VND'. lv_doc_cur = 100. ENDIF.
-    "     ... CONV fins_vwcur12( is_raw-amountindoumentcurrency / lv_doc_cur )
-    "
-    " is_raw-* là STRING. ABAP đổi string sang số theo Decimal Notation của
-    " user trong SU3. DEV-CLH đang để 1.234.567,89 nên dấu chấm bị hiểu là
-    " phân cách hàng nghìn: "1000.00" thành 100000.
-    "
-    " Hai hằng số chia kia là workaround cho đúng hiện tượng đó, nhưng chỉ
-    " phủ 3/4 trường hợp: doc amount của currency KHÁC VND chia cho 1 nên
-    " không được bù -> mọi chứng từ USD/EUR đã post đều gấp 100 lần.
-    " Bằng chứng: FB03 chứng từ 100000036, file ghi 1000.00, SAP hiện
-    " 100.000,00 EUR.
-    "
-    " Cách sửa: chuẩn hóa chuỗi tường minh bằng conv_amount, không phụ thuộc
-    " SU3 nữa -> BỎ luôn cả hai divisor.
-    "═══════════════════════════════════════════════════════════════════════
     DATA(lv_amount_local)   = conv_amount( CONV string( is_raw-amountinlocalcurrency ) ).
     DATA(lv_local_tax_base) = conv_amount( CONV string( is_raw-localtaxbaseamount ) ).
     DATA(lv_amount_doc_cur) = conv_amount( CONV string( is_raw-amountindoumentcurrency ) ).
@@ -163,10 +141,6 @@ CLASS zfi_cl_fidoc_validator IMPLEMENTATION.
                            companycodecurrency     = is_raw-companycodecurrency
                            transactioncurrency     = is_raw-transactioncurrency
 
-                           " CHƯA SỬA - cùng loại lỗi với số tiền: string sang
-                           " DEC(13,5) vẫn theo SU3. Phải quyết chung với dòng
-                           " ls_item-exchangerate /= 1000 trong ZFI_CL_FIDOC_MAPPER,
-                           " sửa riêng lẻ là lệch nhau. Xem FIX3_amount_conversion.md
                            exchangerate            = is_raw-exchangerate
 
                            assignment              = is_raw-assignment
@@ -209,9 +183,6 @@ CLASS zfi_cl_fidoc_validator IMPLEMENTATION.
                            countrycus              = is_raw-countrycus
                            mstcus                  = is_raw-mstcus
                            vatregno                = is_raw-vatregno
-
-                           " CHƯA SỬA - cùng loại lỗi: string sang MENGE_D(3 thập
-                           " phân) vẫn theo SU3. Ít dùng nên tách ra sửa sau.
                            quantity                = is_raw-quantity
 
                            alternativepayee        = is_raw-alternativepayee

@@ -31,28 +31,6 @@ CLASS lhc_Log IMPLEMENTATION.
 
 
   METHOD uploadFromExcel.
-    " ============================================================
-    " Toàn bộ chứng từ đi qua SOAP (post_soap), KHÔNG dùng EML i_journalentrytp.
-    " Lý do: MODIFY ENTITIES của BO khác bị cấm trong RAP modify-phase
-    " (BEHAVIOR_STATEMENT_ILLEGAL). SOAP loopback chạy NGOÀI RAP framework
-    " nên hợp lệ trong action handler.
-    " ============================================================
-
-*    "ThaoNTT add authority
-*    " Chỉ người có quyền upload FI mới được chạy; người chỉ có quyền xem bị chặn tại đây
-*    AUTHORITY-CHECK OBJECT 'Z_UPLOAD'
-*      ID 'ZUPLMOD' FIELD 'FI'
-*      ID 'ACTVT'   FIELD '01'
-*      ID 'WERKS'   DUMMY.
-*    IF sy-subrc <> 0.
-*      LOOP AT keys INTO DATA(ls_auth_key).
-*        APPEND VALUE #( %cid   = ls_auth_key-%cid
-*                        %param = VALUE #( Type    = 'Error'
-*                                          Message = 'Bạn không có quyền upload chứng từ FI' ) ) TO result.
-*      ENDLOOP.
-*      RETURN.
-*    ENDIF.
-*    "End add
 
     LOOP AT keys INTO DATA(ls_key).
 

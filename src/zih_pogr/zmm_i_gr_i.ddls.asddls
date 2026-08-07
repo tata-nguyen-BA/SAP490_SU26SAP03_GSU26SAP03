@@ -9,7 +9,7 @@ define view entity zmm_i_gr_i
 
   association to parent zmm_i_gr_h as _header on _header.GrNumber = $projection.GrNumber
 {
-  key gritem.gr_number         as GrNumber,
+   key gritem.gr_number         as GrNumber,
   key gritem.item              as Item,
 
       gritem.po_number         as PoNumber,
@@ -19,7 +19,7 @@ define view entity zmm_i_gr_i
 
       gritem.material          as Material,
       gritem.plant             as Plant,
-      gritem.batch as Batch,
+      gritem.batch             as Batch,
 
       gritem.receive_qty       as ReceiveQty,
       gritem.unit              as Unit,
@@ -39,7 +39,10 @@ define view entity zmm_i_gr_i
       gritem.material_document as MaterialDocument,
       gritem.mat_doc_item      as MaterialDocumentItem,
       gritem.mat_doc_year      as MaterialDocumentYear,
-
+      gritem.fi_doc_number     as FiDocNumber,
+      gritem.fi_doc_company    as FiDocCompany,
+      gritem.fi_doc_year       as FiDocYear,
 
       _header
 }
+

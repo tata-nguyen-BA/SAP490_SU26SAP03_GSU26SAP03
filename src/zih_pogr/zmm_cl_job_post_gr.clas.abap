@@ -74,7 +74,7 @@ CLASS zmm_cl_job_post_gr IMPLEMENTATION.
                lv_mat_doc,
                lv_mat_year.
 
-        TRY.
+         TRY.
             zmm_cl_gr_srv=>postgr( EXPORTING iv_test                   = ls_hd-testmode
                                              is_header                 = ls_hd
                                              is_item                   = lr_itm->*
@@ -83,20 +83,37 @@ CLASS zmm_cl_job_post_gr IMPLEMENTATION.
                                    CHANGING  cs_result                 = ls_item_result ).
 
           CATCH cx_root INTO DATA(lx_item).
-            " Ghi lỗi lên chính item đó rồi chạy tiếp — 1 item hỏng không được
-            " làm dừng cả đợt quét, những GR xếp sau vẫn phải được xử lý
             CLEAR: lv_mat_doc,
                    lv_mat_year.
             ls_item_result-status  = zmm_cl_gr_srv=>gc_status_error.
             ls_item_result-message = lx_item->get_text( ).
         ENDTRY.
 
+        " SAP tự tạo Accounting Document (FI) cùng lúc với Material Document qua
+        " account determination — không có BAPI riêng, chỉ đọc lại từ BKPF sau khi
+        " BAPI_TRANSACTION_COMMIT (đã chạy bên trong postgr) hoàn tất
+        DATA lv_fi_belnr TYPE belnr_d.
+        DATA lv_fi_bukrs TYPE bukrs.
+        DATA lv_fi_gjahr TYPE gjahr.
+        CLEAR: lv_fi_belnr, lv_fi_bukrs, lv_fi_gjahr.
+
+        IF ls_hd-testmode = abap_false AND lv_mat_doc IS NOT INITIAL.
+          SELECT SINGLE bukrs, belnr, gjahr
+            FROM bkpf
+            WHERE awtyp = 'MKPF'
+              AND awkey = @( |{ lv_mat_doc }{ lv_mat_year }| )
+            INTO (@lv_fi_bukrs, @lv_fi_belnr, @lv_fi_gjahr).
+        ENDIF.
+
         UPDATE zmm_tb_gr_i
           SET status            = @ls_item_result-status,
               message           = @ls_item_result-message,
               material_document = @lv_mat_doc,
               mat_doc_year      = @lv_mat_year,
-              mat_doc_item      = '0001'
+              mat_doc_item      = '0001',
+              fi_doc_number     = @lv_fi_belnr,
+              fi_doc_company    = @lv_fi_bukrs,
+              fi_doc_year       = @lv_fi_gjahr
           WHERE gr_number = @ls_hd-gr_number AND item = @lr_itm->item.
 
         " Chốt ngay kết quả của item này: item lỗi phía sau gọi BAPI_TRANSACTION_ROLLBACK,
@@ -115,14 +132,18 @@ CLASS zmm_cl_job_post_gr IMPLEMENTATION.
         WHERE gr_number = @ls_hd-gr_number AND status = @zmm_cl_gr_srv=>gc_status_error
         INTO @DATA(lv_err_cnt).
 
-      " Material Document đại diện của GR để tra cứu nhanh ở danh sách;
-      " chi tiết từng item xem trong dialog
-      SELECT SINGLE material_document
+          DATA lv_hd_matdoc   TYPE mblnr.
+      DATA lv_hd_fi_bukrs TYPE bukrs.
+      DATA lv_hd_fi_belnr TYPE belnr_d.
+      DATA lv_hd_fi_gjahr TYPE gjahr.
+      CLEAR: lv_hd_matdoc, lv_hd_fi_bukrs, lv_hd_fi_belnr, lv_hd_fi_gjahr.
+
+      SELECT SINGLE material_document, fi_doc_company, fi_doc_number, fi_doc_year
         FROM zmm_tb_gr_i
         WHERE gr_number          = @ls_hd-gr_number
           AND status             = @zmm_cl_gr_srv=>gc_status_success
           AND material_document <> @space
-        INTO @DATA(lv_hd_matdoc).
+        INTO (@lv_hd_matdoc, @lv_hd_fi_bukrs, @lv_hd_fi_belnr, @lv_hd_fi_gjahr).
 
       DATA lv_hd_year TYPE mjahr.
       CLEAR lv_hd_year.
@@ -131,13 +152,16 @@ CLASS zmm_cl_job_post_gr IMPLEMENTATION.
       ENDIF.
 
       UPDATE zmm_tb_gr_h
-        SET status          = @( COND #( WHEN lv_ok_cnt = lv_total_cnt  THEN zmm_cl_gr_srv=>gc_status_success
-                                         WHEN lv_err_cnt = lv_total_cnt THEN zmm_cl_gr_srv=>gc_status_error
-                                         ELSE                                zmm_cl_gr_srv=>gc_status_ready ) ),
+        SET status            = @( COND #( WHEN lv_ok_cnt = lv_total_cnt  THEN zmm_cl_gr_srv=>gc_status_success
+                                           WHEN lv_err_cnt = lv_total_cnt THEN zmm_cl_gr_srv=>gc_status_error
+                                           ELSE                                zmm_cl_gr_srv=>gc_status_ready ) ),
             material_document = @lv_hd_matdoc,
             mat_doc_year      = @lv_hd_year,
-            last_changed_at = @( utclong_current( ) ),
-            last_changed_by = @sy-uname
+            fi_doc_number     = @lv_hd_fi_belnr,
+            fi_doc_company    = @lv_hd_fi_bukrs,
+            fi_doc_year       = @lv_hd_fi_gjahr,
+            last_changed_at   = @( utclong_current( ) ),
+            last_changed_by   = @sy-uname
         WHERE gr_number = @ls_hd-gr_number.
 
     ENDLOOP.

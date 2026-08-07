@@ -9,7 +9,7 @@ define view entity ZUP_P_FIUPLOAD_ITEMCNT
   key filename,
   key id_doc,
       count( * )          as LineCount,
-      companycodecurrency as LocalCurrency,
+      transactioncurrency as LocalCurrency,
       @Semantics.amount.currencyCode: 'LocalCurrency'
       sum( case
              when postingkey = '40' or postingkey = '01'
@@ -21,4 +21,4 @@ define view entity ZUP_P_FIUPLOAD_ITEMCNT
 group by
   filename,
   id_doc,
-  companycodecurrency
+  transactioncurrency

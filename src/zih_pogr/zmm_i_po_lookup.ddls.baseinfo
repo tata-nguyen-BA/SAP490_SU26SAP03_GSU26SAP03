@@ -3,6 +3,7 @@
 {
 "FROM":
 [
+"ZMM_I_PO_GR_QTY",
 "EKKO",
 "EKPO",
 "MARC"

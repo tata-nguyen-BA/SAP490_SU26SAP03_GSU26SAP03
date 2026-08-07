@@ -7,4 +7,5 @@ define abstract entity zd_gr_upload_result {
   error_count   : abap.int4;
   status        : zih_de_upload_status; 
   message       : abap.string(0);
+  items_json    : abap.string(0);
 }

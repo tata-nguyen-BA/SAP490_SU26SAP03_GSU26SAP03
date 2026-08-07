@@ -168,38 +168,6 @@ CLASS zfi_cl_fidoc_posting_srv IMPLEMENTATION.
           lv_guid = |{ sy-datum }{ sy-uzeit }|.
       ENDTRY.
 
-*      TRY.
-*          DATA(lo_destination) =
-*            cl_http_destination_provider=>create_by_comm_arrangement( comm_scenario = 'ZCORE_CS_SAP'
-*                                                                      service_id    = 'ZCORE_OS_SAP_REST' ).
-*
-*          DATA(lo_http_client) =
-*            cl_web_http_client_manager=>create_by_http_destination( i_destination = lo_destination ).
-*
-*          DATA(lo_request) = lo_http_client->get_http_request( ).
-*          lo_request->set_header_field( i_name  = 'Content-Type'
-*                                        i_value = 'text/xml; charset=UTF-8' ).
-*          lo_request->set_uri_path( |/sap/bc/srt/scs_ext/sap/journalentrycreaterequestconfi?MessageId={ lv_guid }| ).
-*          lo_request->set_text( lv_xml_request ).
-*
-*          DATA(lo_response) = lo_http_client->execute( i_method = if_web_http_client=>post ).
-*          lv_xml_response = lo_response->get_text( ).
-*
-*        CATCH cx_http_dest_provider_error INTO DATA(lx_dest).
-*          APPEND VALUE #( filename = ls_header-filename
-*                          id_doc   = ls_header-id_doc
-*                          type     = 'Error'
-*                          message  = lx_dest->get_text( ) ) TO et_results.
-*          CONTINUE.
-*
-*        CATCH cx_web_http_client_error INTO DATA(lx_http).
-*          APPEND VALUE #( filename = ls_header-filename
-*                          id_doc   = ls_header-id_doc
-*                          type     = 'Error'
-*                          message  = lx_http->get_text( ) ) TO et_results.
-*          CONTINUE.
-*      ENDTRY.
-
       TRY.
           DATA(lo_http_wrap) = NEW zfi_cl_fidoc_http_wrap( ).
           lv_xml_response = lo_http_wrap->send_soap(

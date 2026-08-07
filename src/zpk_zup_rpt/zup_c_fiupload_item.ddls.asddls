@@ -14,7 +14,7 @@ define root view entity ZUP_C_FIUPLOAD_ITEM
       account                  as Account,
       customer                 as Customer,
       supplier                 as Supplier,
-      companycodecurrency      as LocalCurrency,
+      transactioncurrency      as LocalCurrency,
       @Semantics.amount.currencyCode: 'LocalCurrency'
       amountinlocalcurrency    as AmountLC,
       transactioncurrency      as TransactionCurrency,

@@ -2,11 +2,7 @@
 "BASEINFO":
 {
 "FROM":
-[
-"AUFK",
-"JEST",
-"ZPP_TB_ZUPLSX"
-],
+[],
 "ASSOCIATED":
 [],
 "BASE":
