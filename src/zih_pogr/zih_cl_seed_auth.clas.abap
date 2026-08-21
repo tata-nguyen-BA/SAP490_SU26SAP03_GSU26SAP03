@@ -9,11 +9,11 @@ CLASS zih_cl_seed_auth IMPLEMENTATION.
 
     DATA lt_auth TYPE STANDARD TABLE OF zih_tb_auth_user.
     lt_auth = VALUE #(
-      ( user_email = 'thaontt08032003@gmail.com' process_id = 'FI' actvt = '03' )
-      ( user_email = 'thaontt08032003@gmail.com' process_id = 'PP' actvt = '03' )
-      ( user_email = 'thaontt08032003@gmail.com' process_id = 'GR' actvt = '03' )
-      ( user_email = 'thaontt08032003@gmail.com' process_id = 'PP' actvt = '01' )
-      ( user_email = 'thaontt08032003@gmail.com' process_id = 'GR' actvt = '01' )
+      ( user_email = 'dtphat2k4@gmail.com' process_id = 'FI' actvt = '03' )
+      ( user_email = 'dtphat2k4@gmail.com' process_id = 'PP' actvt = '03' )
+      ( user_email = 'dtphat2k4@gmail.com' process_id = 'GR' actvt = '03' )
+      ( user_email = 'dtphat2k4@gmail.com' process_id = 'PP' actvt = '01' )
+*      ( user_email = 'dtphat2k4@gmail.com' process_id = 'GR' actvt = '03' )
     ).
 
     MODIFY zih_tb_auth_user FROM TABLE @lt_auth.

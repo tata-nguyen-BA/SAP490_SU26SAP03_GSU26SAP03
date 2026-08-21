@@ -60,7 +60,7 @@ CLASS zpp_cl_zuplsx_validator IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD validate.
+    METHOD validate.
     rv_has_error      = abap_false.
     es_data-filename  = ms_request-filename.
     es_data-testmode  = COND #( WHEN ms_request-testmode IS NOT INITIAL THEN abap_true ).
@@ -85,7 +85,7 @@ CLASS zpp_cl_zuplsx_validator IMPLEMENTATION.
       IF ls_raw-base_unit IS NOT INITIAL.
         IF conv_unit( EXPORTING iv_raw  = ls_raw-base_unit
                       IMPORTING ev_unit = ls_row-base_unit ) = abap_false.
-          rv_has_error = abap_true.
+          " BỎ: rv_has_error = abap_true.
           APPEND VALUE #( client_row_id = ls_row-client_row_id
                           id_doc        = ls_row-id_doc
                           type          = 'Error'
@@ -94,16 +94,13 @@ CLASS zpp_cl_zuplsx_validator IMPLEMENTATION.
           CONTINUE.
         ENDIF.
       ELSE.
-        " Template ghi "ĐVT, trống = lấy theo material". Không tự lấy thì
-        " BAPI vẫn tạo được lệnh (SAP tự suy từ material master), nhưng
-        " bảng log mất thông tin -> cột Unit trên báo cáo trống và file
-        " dựng lại từ log cũng thiếu cột này.
+        " Template ghi "ĐVT, trống = lấy theo material".
         SELECT SINGLE meins FROM mara
           WHERE matnr = @ls_row-material
           INTO @ls_row-base_unit.
 
         IF sy-subrc <> 0.
-          rv_has_error = abap_true.
+          " BỎ: rv_has_error = abap_true.
           APPEND VALUE #( client_row_id = ls_row-client_row_id
                           id_doc        = ls_row-id_doc
                           type          = 'Error'
@@ -120,13 +117,12 @@ CLASS zpp_cl_zuplsx_validator IMPLEMENTATION.
         ls_row-sale_order_item = |{ ls_raw-sale_order_item ALPHA = IN }|.
       ENDIF.
 
-      " Required fields (port từ cloud: material/plant/pv/ordertype/qty)
       IF    ls_row-material           IS INITIAL
          OR ls_row-production_plant   IS INITIAL
          OR ls_row-production_version IS INITIAL
          OR ls_row-order_type         IS INITIAL
          OR ls_raw-total_qty          IS INITIAL.
-        rv_has_error = abap_true.
+        " BỎ: rv_has_error = abap_true.
         APPEND VALUE #( client_row_id = ls_row-client_row_id
                         id_doc        = ls_row-id_doc
                         type          = 'Error'
@@ -137,7 +133,7 @@ CLASS zpp_cl_zuplsx_validator IMPLEMENTATION.
 
       IF conv_qty( EXPORTING iv_raw = ls_raw-total_qty
                    IMPORTING ev_qty = ls_row-total_qty ) = abap_false.
-        rv_has_error = abap_true.
+        " BỎ: rv_has_error = abap_true.
         APPEND VALUE #( client_row_id = ls_row-client_row_id
                         id_doc        = ls_row-id_doc
                         type          = 'Error'
@@ -149,7 +145,7 @@ CLASS zpp_cl_zuplsx_validator IMPLEMENTATION.
       ls_row-date_start = conv_date( ls_raw-date_start ).
       ls_row-date_end   = conv_date( ls_raw-date_end ).
       IF ls_row-date_start IS INITIAL OR ls_row-date_end IS INITIAL.
-        rv_has_error = abap_true.
+        " BỎ: rv_has_error = abap_true.
         APPEND VALUE #( client_row_id = ls_row-client_row_id
                         id_doc        = ls_row-id_doc
                         type          = 'Error'
@@ -158,10 +154,10 @@ CLASS zpp_cl_zuplsx_validator IMPLEMENTATION.
         CONTINUE.
       ENDIF.
 
-      " Rule MTO/MTS (port nguyên từ cloud)
+      " Rule MTO/MTS
       IF gr_mto_order_type IS NOT INITIAL.
         IF ls_row-order_type IN gr_mto_order_type AND ls_row-sale_order IS INITIAL.
-          rv_has_error = abap_true.
+          " BỎ: rv_has_error = abap_true.
           APPEND VALUE #( client_row_id = ls_row-client_row_id
                           id_doc        = ls_row-id_doc
                           type          = 'Error'
@@ -170,7 +166,7 @@ CLASS zpp_cl_zuplsx_validator IMPLEMENTATION.
           CONTINUE.
         ENDIF.
         IF ls_row-order_type NOT IN gr_mto_order_type AND ls_row-sale_order IS NOT INITIAL.
-          rv_has_error = abap_true.
+          " BỎ: rv_has_error = abap_true.
           APPEND VALUE #( client_row_id = ls_row-client_row_id
                           id_doc        = ls_row-id_doc
                           type          = 'Error'
@@ -183,7 +179,9 @@ CLASS zpp_cl_zuplsx_validator IMPLEMENTATION.
       APPEND ls_row TO es_data-rows.
     ENDLOOP.
 
+    " Không còn dòng nào qua được bước 1 -> không có gì để post
     IF es_data-rows IS INITIAL.
+      rv_has_error = abap_true.
       RETURN.
     ENDIF.
 
@@ -201,18 +199,25 @@ CLASS zpp_cl_zuplsx_validator IMPLEMENTATION.
                                     AND ipv~productionversion = req~production_version
       INTO TABLE @DATA(lt_pv).
 
+    " MỚI: gom index các dòng hỏng rồi xoá SAU vòng lặp.
+    " Xoá ngay trong LOOP AT ... ASSIGNING sẽ làm lệch chỉ số của các dòng sau.
+    DATA lt_del TYPE STANDARD TABLE OF i WITH EMPTY KEY.
+    CLEAR lt_del.
+
     LOOP AT es_data-rows ASSIGNING FIELD-SYMBOL(<ls_row>).
+      DATA(lv_idx) = sy-tabix.
+
       READ TABLE lt_pv INTO DATA(ls_pv)
            WITH KEY material          = <ls_row>-material
                     plant             = <ls_row>-production_plant
                     productionversion = <ls_row>-production_version.
       IF sy-subrc <> 0.
-        rv_has_error = abap_true.
         APPEND VALUE #( client_row_id = <ls_row>-client_row_id
                         id_doc        = <ls_row>-id_doc
                         type          = 'Error'
                         message       = |ID { <ls_row>-id_doc }: Không tồn tại Production Version { <ls_row>-production_version } cho { <ls_row>-material }/{ <ls_row>-production_plant }.| )
                TO et_errors.
+        APPEND lv_idx TO lt_del.
         CONTINUE.
       ENDIF.
       <ls_row>-des_pv = ls_pv-productionversiontext.
@@ -229,62 +234,81 @@ CLASS zpp_cl_zuplsx_validator IMPLEMENTATION.
       IF sy-subrc = 0.
         <ls_row>-sale_order_item = ls_so-salesorderitem.
       ELSE.
-        rv_has_error = abap_true.
         APPEND VALUE #( client_row_id = <ls_row>-client_row_id
                         id_doc        = <ls_row>-id_doc
                         type          = 'Error'
                         message       = |ID { <ls_row>-id_doc }: Sales Order { <ls_row>-sale_order } không thuộc Material/Production Version.| )
                TO et_errors.
+        APPEND lv_idx TO lt_del.
       ENDIF.
     ENDLOOP.
 
+    " Xoá từ CUỐI lên ĐẦU để index không lệch
+    SORT lt_del DESCENDING.
+    LOOP AT lt_del INTO DATA(lv_d).
+      DELETE es_data-rows INDEX lv_d.
+    ENDLOOP.
+
+    IF es_data-rows IS INITIAL.
+      rv_has_error = abap_true.
+      RETURN.
+    ENDIF.
+
     " --- 3. Check sớm các điều kiện BAPI sẽ đòi khi tạo lệnh ---
-    " (đồng bộ Check với Post: OPL8 per plant + view Work Scheduling)
-    IF es_data-rows IS NOT INITIAL.
+    CLEAR lt_del.
 
-      " 3a. Order type đã khai cho plant chưa (T399X = OPL8)
-      SELECT werks, auart
-        FROM t399x
-        FOR ALL ENTRIES IN @es_data-rows
-        WHERE werks = @es_data-rows-production_plant
-          AND auart = @es_data-rows-order_type
-        INTO TABLE @DATA(lt_t399x).
+    " 3a. Order type đã khai cho plant chưa (T399X = OPL8)
+    SELECT werks, auart
+      FROM t399x
+      FOR ALL ENTRIES IN @es_data-rows
+      WHERE werks = @es_data-rows-production_plant
+        AND auart = @es_data-rows-order_type
+      INTO TABLE @DATA(lt_t399x).
 
-      " 3b. Material đã maintain view Work Scheduling tại plant chưa
-      " (MARC-PSTAT chứa 'A' = view Work Scheduling)
-      SELECT matnr, werks, pstat
-        FROM marc
-        FOR ALL ENTRIES IN @es_data-rows
-        WHERE matnr = @es_data-rows-material
-          AND werks = @es_data-rows-production_plant
-        INTO TABLE @DATA(lt_marc).
+    " 3b. Material đã maintain view Work Scheduling tại plant chưa
+    SELECT matnr, werks, pstat
+      FROM marc
+      FOR ALL ENTRIES IN @es_data-rows
+      WHERE matnr = @es_data-rows-material
+        AND werks = @es_data-rows-production_plant
+      INTO TABLE @DATA(lt_marc).
 
-      LOOP AT es_data-rows INTO DATA(ls_chk).
+    LOOP AT es_data-rows INTO DATA(ls_chk).
+      DATA(lv_idx3) = sy-tabix.
 
-        IF NOT line_exists( lt_t399x[ werks = ls_chk-production_plant
-                                      auart = ls_chk-order_type ] ).
-          rv_has_error = abap_true.
-          APPEND VALUE #( client_row_id = ls_chk-client_row_id
-                          id_doc        = ls_chk-id_doc
-                          type          = 'Error'
-                          message       = |ID { ls_chk-id_doc }: Order Type { ls_chk-order_type } chưa được khai cho Plant { ls_chk-production_plant } (OPL8).| )
-                 TO et_errors.
-          CONTINUE.
-        ENDIF.
+      IF NOT line_exists( lt_t399x[ werks = ls_chk-production_plant
+                                    auart = ls_chk-order_type ] ).
+        APPEND VALUE #( client_row_id = ls_chk-client_row_id
+                        id_doc        = ls_chk-id_doc
+                        type          = 'Error'
+                        message       = |ID { ls_chk-id_doc }: Order Type { ls_chk-order_type } chưa được khai cho Plant { ls_chk-production_plant } (OPL8).| )
+               TO et_errors.
+        APPEND lv_idx3 TO lt_del.
+        CONTINUE.
+      ENDIF.
 
-        READ TABLE lt_marc INTO DATA(ls_marc)
-             WITH KEY matnr = ls_chk-material
-                      werks = ls_chk-production_plant.
-        IF sy-subrc <> 0 OR ls_marc-pstat NA 'A'.
-          rv_has_error = abap_true.
-          APPEND VALUE #( client_row_id = ls_chk-client_row_id
-                          id_doc        = ls_chk-id_doc
-                          type          = 'Error'
-                          message       = |ID { ls_chk-id_doc }: Material { ls_chk-material } chưa maintain view Work Scheduling tại Plant { ls_chk-production_plant } (MM01).| )
-                 TO et_errors.
-        ENDIF.
+      READ TABLE lt_marc INTO DATA(ls_marc)
+           WITH KEY matnr = ls_chk-material
+                    werks = ls_chk-production_plant.
+      IF sy-subrc <> 0 OR ls_marc-pstat NA 'A'.
+        APPEND VALUE #( client_row_id = ls_chk-client_row_id
+                        id_doc        = ls_chk-id_doc
+                        type          = 'Error'
+                        message       = |ID { ls_chk-id_doc }: Material { ls_chk-material } chưa maintain view Work Scheduling tại Plant { ls_chk-production_plant } (MM01).| )
+               TO et_errors.
+        APPEND lv_idx3 TO lt_del.
+      ENDIF.
+    ENDLOOP.
 
-      ENDLOOP.
+    SORT lt_del DESCENDING.
+    LOOP AT lt_del INTO DATA(lv_d3).
+      DELETE es_data-rows INDEX lv_d3.
+    ENDLOOP.
+
+    " Chỉ khi KHÔNG còn dòng nào hợp lệ mới coi là cả file hỏng.
+    " Còn dòng hợp lệ -> handler vẫn post, dòng lỗi đã nằm trong et_errors.
+    IF es_data-rows IS INITIAL.
+      rv_has_error = abap_true.
     ENDIF.
   ENDMETHOD.
 

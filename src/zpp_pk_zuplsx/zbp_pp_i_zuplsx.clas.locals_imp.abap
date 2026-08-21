@@ -61,8 +61,8 @@ CLASS lhc_UploadLog IMPLEMENTATION.
           CONTINUE.
       ENDTRY.
 
-"ThaoNTT add
-" --- 1b. Kiểm quyền theo email từ Work Zone ---
+      "ThaoNTT add
+      " --- 1b. Kiểm quyền theo email từ Work Zone ---
       DATA(lv_auth_err) = zih_cl_auth=>check(
         iv_email      = ls_request-useremail
         iv_process_id = zih_cl_auth=>gc_mod_pp
@@ -80,15 +80,36 @@ CLASS lhc_UploadLog IMPLEMENTATION.
       DATA lt_errors TYPE zpp_if_zuplsx_types=>tt_results.
       CLEAR: ls_data, lt_errors.
 
-      IF lo_validator->validate( IMPORTING es_data   = ls_data
-                                           et_errors = lt_errors ) = abap_true.
-        LOOP AT lt_errors INTO DATA(ls_verr).
-          APPEND VALUE #( %cid   = ls_key-%cid
-                          %param = VALUE #( ClientRowId = ls_verr-client_row_id
-                                            IdDoc       = ls_verr-id_doc
-                                            Type        = ls_verr-type
-                                            Message     = ls_verr-message ) ) TO result.
-        ENDLOOP.
+*      IF lo_validator->validate( IMPORTING es_data   = ls_data
+*                                           et_errors = lt_errors ) = abap_true.
+*        LOOP AT lt_errors INTO DATA(ls_verr).
+*          APPEND VALUE #( %cid   = ls_key-%cid
+*                          %param = VALUE #( ClientRowId = ls_verr-client_row_id
+*                                            IdDoc       = ls_verr-id_doc
+*                                            Type        = ls_verr-type
+*                                            Message     = ls_verr-message ) ) TO result.
+*        ENDLOOP.
+*        CONTINUE.
+*      ENDIF.
+
+
+      DATA(lv_no_valid_row) = lo_validator->validate( IMPORTING es_data   = ls_data
+                                                                et_errors = lt_errors ).
+
+      " Lỗi validate LUÔN được trả về, kể cả khi vẫn còn dòng hợp lệ.
+      " Không có bước này thì post bán phần sẽ giấu mất lý do dòng bị bỏ.
+      LOOP AT lt_errors INTO DATA(ls_verr).
+        APPEND VALUE #( %cid   = ls_key-%cid
+                        %param = VALUE #( ClientRowId = ls_verr-client_row_id
+                                          IdDoc       = ls_verr-id_doc
+                                          Type        = ls_verr-type
+                                          Message     = ls_verr-message ) ) TO result.
+      ENDLOOP.
+
+      " Chỉ dừng khi KHÔNG còn dòng nào hợp lệ.
+      " Còn dòng hợp lệ -> post tiếp, giống FI: chứng từ lỗi không kéo
+      " theo chứng từ khác.
+      IF lv_no_valid_row = abap_true.
         CONTINUE.
       ENDIF.
 

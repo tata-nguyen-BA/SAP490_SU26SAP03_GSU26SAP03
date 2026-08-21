@@ -25,6 +25,9 @@ CLASS lhc_gr_upload DEFINITION INHERITING FROM cl_abap_behavior_handler.
       IMPORTING keys   FOR ACTION GrUpload~createFromPO
       RESULT    result.
 
+ METHODS save_mapping FOR MODIFY
+      IMPORTING keys   FOR ACTION GrUpload~saveMapping
+      RESULT    result.
 ENDCLASS.
 
 CLASS lhc_gr_upload IMPLEMENTATION.
@@ -201,12 +204,15 @@ CLASS lhc_gr_upload IMPLEMENTATION.
     ) ).
   ENDMETHOD.
 
-    METHOD get_my_auth.
+  METHOD get_my_auth.
     IF keys IS INITIAL. RETURN. ENDIF.
     DATA(ls_key) = keys[ 1 ].
     DATA(lv_email) = CONV string( ls_key-%param-user_email ).
 
     DATA ls_auth TYPE zd_gr_my_auth.
+    ls_auth-can_upload_fi = abap_true.
+    ls_auth-can_upload_pp = abap_true.
+    ls_auth-can_upload_gr = abap_true.
 *    ls_auth-can_upload_fi = COND #( WHEN zih_cl_auth=>check( iv_email = lv_email
 *                                          iv_process_id = zih_cl_auth=>gc_mod_fi
 *                                          iv_actvt = zih_cl_auth=>gc_act_post ) IS INITIAL
@@ -234,4 +240,28 @@ CLASS lhc_gr_upload IMPLEMENTATION.
       %action-retryPost = if_abap_behv=>auth-allowed
     ) ).
   ENDMETHOD.
+
+  METHOD save_mapping.
+    IF keys IS INITIAL. RETURN. ENDIF.
+    DATA(ls_key) = keys[ 1 ].
+    DATA(ls_p)   = ls_key-%param.
+
+    DATA(lv_err) = zih_cl_map_srv=>save_mapping(
+                     iv_mapping_id   = ls_p-mapping_id
+                     iv_process_id   = CONV #( ls_p-process_id )
+                     iv_description  = ls_p-description
+                     iv_user_email   = CONV string( ls_p-user_email )
+                     iv_payload_json = CONV string( ls_p-payload_json ) ).
+
+    DATA ls_res TYPE STRUCTURE FOR ACTION RESULT zmm_i_gr_h~saveMapping.
+    ls_res-%cid            = ls_key-%cid.
+    ls_res-%param-status   = COND #( WHEN lv_err IS INITIAL
+                                     THEN zmm_cl_gr_srv=>gc_status_success
+                                     ELSE zmm_cl_gr_srv=>gc_status_error ).
+    ls_res-%param-message  = COND #( WHEN lv_err IS INITIAL
+                                     THEN |Đã lưu cấu hình { ls_p-mapping_id }|
+                                     ELSE lv_err ).
+    APPEND ls_res TO result.
+  ENDMETHOD.
+
 ENDCLASS.

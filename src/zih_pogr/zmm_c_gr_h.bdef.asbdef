@@ -1,12 +1,13 @@
 projection;
-strict(2);
+strict ( 2 );
 
 define behavior for zmm_c_gr_h alias GrUpload
 {
   use action uploadExcel;
   use action retryPost;
   use action createFromPO;
-//  use action getMyAuth;
+  use action getMyAuth;
+  use action saveMapping;
   use association _items { }
 }
 define behavior for zmm_c_gr_i alias GrItem

@@ -38,6 +38,7 @@ CLASS zmm_cl_job_post_gr IMPLEMENTATION.
     DATA lt_hd TYPE STANDARD TABLE OF zmm_tb_gr_h.
     SELECT * FROM zmm_tb_gr_h
       WHERE status = @zmm_cl_gr_srv=>gc_status_pending
+        AND ( @lv_gr_number = '' OR gr_number = @lv_gr_number )
       INTO TABLE @lt_hd.
 
     " Job có thể chạy trước khi transaction gọi retryPost/uploadExcel kịp commit —
@@ -52,12 +53,12 @@ CLASS zmm_cl_job_post_gr IMPLEMENTATION.
     LOOP AT lt_hd INTO DATA(ls_hd).
       DATA lt_itm TYPE zmm_cl_gr_srv=>tyt_gr_item.
       " Chỉ lấy item CHƯA thành công — tránh post lại item đã có Material Document
-              SELECT gr_number, item, po_number, po_item, material, plant, batch, receive_qty, unit, storage_location, order_qty,
-               open_qty, status, message
-          FROM zmm_tb_gr_i
-          WHERE gr_number  = @ls_hd-gr_number
-            AND status    <> @zmm_cl_gr_srv=>gc_status_success
-          INTO CORRESPONDING FIELDS OF TABLE @lt_itm.
+      SELECT gr_number, item, po_number, po_item, material, plant, batch, receive_qty, unit, storage_location, order_qty,
+       open_qty, status, message
+  FROM zmm_tb_gr_i
+  WHERE gr_number  = @ls_hd-gr_number
+    AND status    <> @zmm_cl_gr_srv=>gc_status_success
+  INTO CORRESPONDING FIELDS OF TABLE @lt_itm.
 
 
       IF lt_itm IS INITIAL.
@@ -74,7 +75,7 @@ CLASS zmm_cl_job_post_gr IMPLEMENTATION.
                lv_mat_doc,
                lv_mat_year.
 
-         TRY.
+        TRY.
             zmm_cl_gr_srv=>postgr( EXPORTING iv_test                   = ls_hd-testmode
                                              is_header                 = ls_hd
                                              is_item                   = lr_itm->*
@@ -132,7 +133,7 @@ CLASS zmm_cl_job_post_gr IMPLEMENTATION.
         WHERE gr_number = @ls_hd-gr_number AND status = @zmm_cl_gr_srv=>gc_status_error
         INTO @DATA(lv_err_cnt).
 
-          DATA lv_hd_matdoc   TYPE mblnr.
+      DATA lv_hd_matdoc   TYPE mblnr.
       DATA lv_hd_fi_bukrs TYPE bukrs.
       DATA lv_hd_fi_belnr TYPE belnr_d.
       DATA lv_hd_fi_gjahr TYPE gjahr.
@@ -163,7 +164,36 @@ CLASS zmm_cl_job_post_gr IMPLEMENTATION.
             last_changed_at   = @( utclong_current( ) ),
             last_changed_by   = @sy-uname
         WHERE gr_number = @ls_hd-gr_number.
+      IF ls_hd-batch_id IS NOT INITIAL.
+        SELECT COUNT(*) FROM zmm_tb_gr_h
+          WHERE batch_id = @ls_hd-batch_id
+          INTO @DATA(lv_b_total).
+        SELECT COUNT(*) FROM zmm_tb_gr_h
+          WHERE batch_id = @ls_hd-batch_id
+            AND status   = @zmm_cl_gr_srv=>gc_status_success
+          INTO @DATA(lv_b_ok).
+        SELECT COUNT(*) FROM zmm_tb_gr_h
+          WHERE batch_id = @ls_hd-batch_id
+            AND status   = @zmm_cl_gr_srv=>gc_status_error
+          INTO @DATA(lv_b_err).
+        SELECT COUNT(*) FROM zmm_tb_gr_h
+          WHERE batch_id = @ls_hd-batch_id
+            AND status   = @zmm_cl_gr_srv=>gc_status_pending
+          INTO @DATA(lv_b_pend).
 
+        UPDATE zih_tb_batch
+          SET status          = @( COND #(
+                WHEN lv_b_pend > 0         THEN zmm_cl_gr_srv=>gc_status_pending
+                WHEN lv_b_ok   = lv_b_total THEN zmm_cl_gr_srv=>gc_status_success
+                WHEN lv_b_err  = lv_b_total THEN zmm_cl_gr_srv=>gc_status_error
+                ELSE                             zmm_cl_gr_srv=>gc_status_ready ) ),
+              total_count     = @lv_b_total,
+              success_count   = @lv_b_ok,
+              error_count     = @lv_b_err,
+              last_changed_at = @( utclong_current( ) ),
+              last_changed_by = @sy-uname
+          WHERE batch_id = @ls_hd-batch_id.
+      ENDIF.
     ENDLOOP.
 
     COMMIT WORK AND WAIT.

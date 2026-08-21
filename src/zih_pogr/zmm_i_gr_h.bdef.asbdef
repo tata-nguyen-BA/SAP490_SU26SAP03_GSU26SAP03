@@ -27,6 +27,9 @@ etag master LastChangedAt
   static action getMyAuth parameter ZD_GR_AUTH_PARAM result [1] ZD_GR_MY_AUTH;
   association _items;
 
+ static action saveMapping
+    parameter ZIH_MAP_SAVE_PARAM
+    result [1] ZIH_MAP_SAVE_RESULT;
 }
 
 define behavior for zmm_i_gr_i alias GrItem

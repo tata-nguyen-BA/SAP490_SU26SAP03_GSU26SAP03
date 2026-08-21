@@ -96,6 +96,38 @@ CLASS zmm_cl_gr_srv DEFINITION
     TYPES tyt_po_snapshot TYPE SORTED TABLE OF ty_po_snapshot
                           WITH UNIQUE KEY po_number po_item.
 
+
+ TYPES: BEGIN OF ty_cell,
+             name  TYPE string,
+             value TYPE string,
+           END OF ty_cell,
+           tyt_cell TYPE STANDARD TABLE OF ty_cell WITH EMPTY KEY.
+
+    TYPES: BEGIN OF ty_row_raw,
+             rowno TYPE i,
+             cells TYPE tyt_cell,
+           END OF ty_row_raw,
+           tyt_row_raw TYPE STANDARD TABLE OF ty_row_raw WITH EMPTY KEY.
+
+    TYPES: BEGIN OF ty_payload_v2,
+             filename  TYPE string,
+             useremail TYPE string,
+             rows      TYPE tyt_row_raw,
+           END OF ty_payload_v2.
+
+    TYPES: BEGIN OF ty_row_flat,
+             gr_number        TYPE string,
+             document_date    TYPE string,
+             movement_type    TYPE string,
+             po_number        TYPE string,
+             po_item          TYPE string,
+             receive_qty      TYPE string,
+             unit             TYPE string,
+             batch            TYPE string,
+             storage_location TYPE string,
+           END OF ty_row_flat.
+
+
     TYPES: BEGIN OF ty_upload_result,
              batch_id      TYPE zih_de_batch_id,
              total_count   TYPE i,
@@ -115,14 +147,17 @@ CLASS zmm_cl_gr_srv DEFINITION
       gc_gm_code_01     TYPE c LENGTH 2 VALUE '01',
       gc_mvt_ind_po     TYPE c LENGTH 1 VALUE 'B'.
 
+
     CLASS-METHODS parse_payload
       IMPORTING
         iv_json       TYPE string
         iv_batch_id   TYPE zih_de_batch_id
+        iv_mapping_id TYPE zih_tb_map_h-mapping_id OPTIONAL
       EXPORTING
         et_gr_headers TYPE tyt_gr_header
         ev_filename   TYPE string
         ev_user_email TYPE string
+        ev_error      TYPE string
       RAISING
         cx_sy_conversion_error.
 
@@ -203,77 +238,126 @@ ENDCLASS.
 
 CLASS zmm_cl_gr_srv IMPLEMENTATION.
 
-  METHOD parse_payload.
-    DATA ls_payload TYPE ty_payload_raw.
+ METHOD parse_payload.
+    CLEAR: et_gr_headers, ev_filename, ev_user_email, ev_error.
+
+    DATA ls_payload TYPE ty_payload_v2.
     /ui2/cl_json=>deserialize(
       EXPORTING json        = iv_json
                 pretty_name = /ui2/cl_json=>pretty_mode-camel_case
       CHANGING  data        = ls_payload ).
 
-    ev_user_email = ls_payload-useremail.
     ev_filename   = ls_payload-filename.
+    ev_user_email = ls_payload-useremail.
 
-    LOOP AT ls_payload-doc INTO DATA(ls_raw_hd).
-      DATA ls_header TYPE ty_gr_header.
-      ls_header-gr_number = to_upper( condense( ls_raw_hd-grnumber ) ).
-      ls_header-batch_id  = iv_batch_id.
+    " ── Nạp cấu hình ánh xạ ───────────────────────────────────────────────
+    DATA(lt_map) = zih_cl_map_srv=>get_mapping( iv_mapping_id = iv_mapping_id
+                                                iv_process_id = zih_cl_auth=>gc_mod_gr ).
+    IF lt_map IS INITIAL.
+      ev_error = |Chưa có cấu hình ánh xạ cho phân hệ GR| &&
+                 COND #( WHEN iv_mapping_id IS NOT INITIAL THEN | (mã { iv_mapping_id })| ).
+      RETURN.
+    ENDIF.
 
-      DATA(lv_mvt_raw) = condense( ls_raw_hd-movementtype ).
-      IF lv_mvt_raw IS NOT INITIAL
-     AND ( strlen( lv_mvt_raw ) <> 3 OR lv_mvt_raw CN '0123456789' ).
-        ls_header-status  = gc_status_error.
-        ls_header-message = |Movement Type '{ lv_mvt_raw }' phải là 3 chữ số|.
-      ELSE.
-        ls_header-movement_type = COND #( WHEN lv_mvt_raw IS INITIAL
-                                          THEN gc_mvt_gr_po
-                                          ELSE lv_mvt_raw ).
-      ENDIF.
+    DATA(lt_resolver) = zih_cl_map_srv=>build_resolver( lt_map ).
 
-      REPLACE ALL OCCURRENCES OF '-' IN ls_raw_hd-documentdate WITH ''.
-      ls_header-document_date = ls_raw_hd-documentdate.
+    " ── Kiểm tra file có đủ cột bắt buộc không ────────────────────────────
+    " Lấy danh sách cột thật từ dòng đầu tiên — mọi dòng đều cùng bộ cột
+    DATA lt_headers TYPE string_table.
+    READ TABLE ls_payload-rows INTO DATA(ls_first) INDEX 1.
+    IF sy-subrc <> 0.
+      ev_error = 'File không có dòng dữ liệu nào'.
+      RETURN.
+    ENDIF.
+    LOOP AT ls_first-cells INTO DATA(ls_c).
+      APPEND zih_cl_map_srv=>normalize( ls_c-name ) TO lt_headers.
+    ENDLOOP.
 
-      DATA lv_item_no TYPE numc3.
-      LOOP AT ls_raw_hd-items INTO DATA(ls_raw_item).
-        lv_item_no += 1.
+    ev_error = zih_cl_map_srv=>check_required( it_map          = lt_map
+                                               it_headers_norm = lt_headers ).
+    IF ev_error IS NOT INITIAL.
+      RETURN.
+    ENDIF.
 
-        DATA lv_po_number TYPE ebeln.
-        DATA lv_po_item   TYPE ebelp.
-        DATA lv_sloc      TYPE lgort_d.
+    " ── Phân giải từng dòng rồi gom theo GR Number ────────────────────────
+    LOOP AT ls_payload-rows INTO DATA(ls_row).
 
-        CALL FUNCTION 'CONVERSION_EXIT_ALPHA_INPUT'
-          EXPORTING
-            input  = ls_raw_item-ponumber
-          IMPORTING
-            output = lv_po_number.
-        CALL FUNCTION 'CONVERSION_EXIT_ALPHA_INPUT'
-          EXPORTING
-            input  = ls_raw_item-poitem
-          IMPORTING
-            output = lv_po_item.
-        CALL FUNCTION 'CONVERSION_EXIT_ALPHA_INPUT'
-          EXPORTING
-            input  = ls_raw_item-storagelocation
-          IMPORTING
-            output = lv_sloc.
+      DATA ls_flat TYPE ty_row_flat.
+      CLEAR ls_flat.
 
-        APPEND VALUE ty_gr_item(
-          gr_number        = ls_header-gr_number
-          item             = lv_item_no
-          po_number        = lv_po_number
-          po_item          = lv_po_item
-          batch            = to_upper( condense( ls_raw_item-batch ) )
-          receive_qty      = ls_raw_item-quantity
-          unit             = ls_raw_item-baseunit
-          storage_location = lv_sloc
-          status           = gc_status_pending
-        ) TO ls_header-items.
+      LOOP AT ls_row-cells INTO DATA(ls_cell).
+        READ TABLE lt_resolver INTO DATA(ls_res)
+          WITH TABLE KEY source_norm = zih_cl_map_srv=>normalize( ls_cell-name ).
+        IF sy-subrc <> 0.
+          CONTINUE.   " cột thừa trong file, không nằm trong cấu hình — bỏ qua
+        ENDIF.
+        ASSIGN COMPONENT ls_res-target_field OF STRUCTURE ls_flat TO FIELD-SYMBOL(<lv_tgt>).
+        IF sy-subrc = 0.
+          <lv_tgt> = condense( ls_cell-value ).
+        ENDIF.
       ENDLOOP.
 
-      APPEND ls_header TO et_gr_headers.
-      CLEAR: ls_header, lv_item_no.
+      DATA(lv_gr) = to_upper( condense( ls_flat-gr_number ) ).
+      IF lv_gr IS INITIAL.
+        CONTINUE.   " dòng trống hoặc thiếu GR Number — validate() sẽ báo ở cấp phiếu
+      ENDIF.
+
+      " Header của phiếu: tạo lần đầu gặp GR Number này
+      READ TABLE et_gr_headers REFERENCE INTO DATA(lr_hd)
+        WITH KEY gr_number = lv_gr.
+      IF sy-subrc <> 0.
+        DATA ls_hd TYPE ty_gr_header.
+        CLEAR ls_hd.
+        ls_hd-gr_number = lv_gr.
+        ls_hd-batch_id  = iv_batch_id.
+
+        DATA(lv_mvt) = condense( ls_flat-movement_type ).
+        IF lv_mvt IS NOT INITIAL
+       AND ( strlen( lv_mvt ) <> 3 OR lv_mvt CN '0123456789' ).
+          ls_hd-status  = gc_status_error.
+          ls_hd-message = |Movement Type '{ lv_mvt }' phải là 3 chữ số|.
+        ELSE.
+          ls_hd-movement_type = COND #( WHEN lv_mvt IS INITIAL THEN gc_mvt_gr_po ELSE lv_mvt ).
+        ENDIF.
+
+        DATA(lv_date) = ls_flat-document_date.
+        REPLACE ALL OCCURRENCES OF '-' IN lv_date WITH ''.
+        REPLACE ALL OCCURRENCES OF '/' IN lv_date WITH ''.
+        ls_hd-document_date = lv_date.
+
+        APPEND ls_hd TO et_gr_headers.
+        READ TABLE et_gr_headers REFERENCE INTO lr_hd WITH KEY gr_number = lv_gr.
+      ENDIF.
+
+      " Item
+      DATA lv_po_number TYPE ebeln.
+      DATA lv_po_item   TYPE ebelp.
+      DATA lv_sloc      TYPE lgort_d.
+
+      CALL FUNCTION 'CONVERSION_EXIT_ALPHA_INPUT'
+        EXPORTING input  = ls_flat-po_number
+        IMPORTING output = lv_po_number.
+      CALL FUNCTION 'CONVERSION_EXIT_ALPHA_INPUT'
+        EXPORTING input  = ls_flat-po_item
+        IMPORTING output = lv_po_item.
+      CALL FUNCTION 'CONVERSION_EXIT_ALPHA_INPUT'
+        EXPORTING input  = ls_flat-storage_location
+        IMPORTING output = lv_sloc.
+
+      APPEND VALUE ty_gr_item(
+        gr_number        = lv_gr
+        item             = lines( lr_hd->items ) + 1
+        po_number        = lv_po_number
+        po_item          = lv_po_item
+        batch            = to_upper( condense( ls_flat-batch ) )
+        receive_qty      = ls_flat-receive_qty
+        unit             = to_upper( condense( ls_flat-unit ) )
+        storage_location = lv_sloc
+        status           = gc_status_pending
+      ) TO lr_hd->items.
+
     ENDLOOP.
   ENDMETHOD.
-
 
   METHOD validate.
     " Lỗi phát hiện ngay lúc đọc file (vd Movement Type sai) phải giữ nguyên, không ghi đè
@@ -568,7 +652,7 @@ CLASS zmm_cl_gr_srv IMPLEMENTATION.
   ENDMETHOD.
 
 
-METHOD upload_excel.
+  METHOD upload_excel.
 
 *    AUTHORITY-CHECK OBJECT 'Z_UPLOAD'
 *      ID 'ZUPLMOD' FIELD 'GR'
@@ -591,17 +675,41 @@ METHOD upload_excel.
            END OF ty_item_msg.
     DATA lt_item_msg TYPE STANDARD TABLE OF ty_item_msg.
 
+*    DATA lv_batch_id TYPE zih_de_batch_id.
+*    lv_batch_id = cl_system_uuid=>create_uuid_c22_static( ).
     DATA lv_batch_id TYPE zih_de_batch_id.
-    lv_batch_id = cl_system_uuid=>create_uuid_c22_static( ).
+    TRY.
+        lv_batch_id = cl_system_uuid=>create_uuid_c22_static( ).
+      CATCH cx_uuid_error INTO DATA(lx_uuid).
+        rs_result = VALUE #( status = gc_status_error message = lx_uuid->get_text( ) ).
+        RETURN.
+    ENDTRY.
 
-    DATA lt_headers TYPE tyt_gr_header.
+*    DATA lt_headers TYPE tyt_gr_header.
+*    TRY.
+*        parse_payload(
+*          EXPORTING iv_json       = iv_payload_json
+*                    iv_batch_id   = lv_batch_id
+*          IMPORTING et_gr_headers = lt_headers
+*                    ev_filename   = DATA(lv_filename)
+*                    ev_user_email = DATA(lv_user_email) ).
+*      CATCH cx_sy_conversion_error INTO DATA(lx).
+*        rs_result = VALUE #( batch_id = lv_batch_id
+*                             status   = gc_status_error
+*                             message  = lx->get_text( ) ).
+*        RETURN.
+*    ENDTRY.
+
+  DATA lt_headers TYPE tyt_gr_header.
     TRY.
         parse_payload(
           EXPORTING iv_json       = iv_payload_json
                     iv_batch_id   = lv_batch_id
+                    iv_mapping_id = iv_mapping_id
           IMPORTING et_gr_headers = lt_headers
                     ev_filename   = DATA(lv_filename)
-                    ev_user_email = DATA(lv_user_email) ).
+                    ev_user_email = DATA(lv_user_email)
+                    ev_error      = DATA(lv_parse_err) ).
       CATCH cx_sy_conversion_error INTO DATA(lx).
         rs_result = VALUE #( batch_id = lv_batch_id
                              status   = gc_status_error
@@ -609,6 +717,13 @@ METHOD upload_excel.
         RETURN.
     ENDTRY.
 
+    " Lỗi cấu hình ánh xạ hoặc file thiếu cột — dừng ngay, chưa đụng gì tới SAP
+    IF lv_parse_err IS NOT INITIAL.
+      rs_result = VALUE #( batch_id = lv_batch_id
+                           status   = gc_status_error
+                           message  = lv_parse_err ).
+      RETURN.
+    ENDIF.
 *    DATA(lv_auth_err) = zih_cl_auth=>check( iv_email      = lv_user_email
 *                                               iv_process_id = zih_cl_auth=>gc_mod_gr
 *                                               iv_actvt      = zih_cl_auth=>gc_act_post ).
@@ -656,17 +771,38 @@ METHOD upload_excel.
           ENDIF.
         ENDLOOP.
 
-        ls_hd_db-status     = COND #( WHEN iv_testmode = abap_false
-                                      THEN gc_status_pending
-                                      ELSE gc_status_ready ).
-        ls_hd_db-testmode   = iv_testmode.
-        ls_hd_db-created_by = COND #( WHEN lv_user_email IS NOT INITIAL THEN lv_user_email ELSE sy-uname ).
-        ls_hd_db-filename   = lv_filename.
-        ls_hd_db-created_at = utclong_current( ).
-        MODIFY zmm_tb_gr_h FROM @ls_hd_db.
-        MODIFY zmm_tb_gr_i FROM TABLE @( CORRESPONDING #( lr_hd->items ) ).
+        " Quyết định trạng thái TRƯỚC khi lưu. Dry-run có thể loại hết item dù
+        " validate() đã cho qua — lúc đó phiếu phải là E (vào Lịch sử), tuyệt đối
+        " không được là R vì R sẽ rơi vào tab Chờ xử lý như một phiếu nháp hợp lệ.
+        DATA ls_first_err TYPE ty_gr_item.
+        CLEAR ls_first_err.
 
-        IF iv_testmode = abap_false.
+        READ TABLE lr_hd->items TRANSPORTING NO FIELDS WITH KEY status = gc_status_ready.
+        DATA(lv_has_ready) = xsdbool( sy-subrc = 0 ).
+
+        IF lv_has_ready = abap_false.
+          READ TABLE lr_hd->items INTO ls_first_err WITH KEY status = gc_status_error.
+          ls_hd_db-status  = gc_status_error.
+          ls_hd_db-message = COND #( WHEN sy-subrc = 0 THEN ls_first_err-message
+                                     ELSE |Tất cả item đều lỗi| ).
+        ELSE.
+          ls_hd_db-status  = COND #( WHEN iv_testmode = abap_false
+                                     THEN gc_status_pending
+                                     ELSE gc_status_ready ).
+          CLEAR ls_hd_db-message.
+        ENDIF.
+
+        IF lv_has_ready = abap_true OR iv_testmode = abap_false.
+          ls_hd_db-testmode   = iv_testmode.
+          ls_hd_db-created_by = COND #( WHEN lv_user_email IS NOT INITIAL THEN lv_user_email ELSE sy-uname ).
+          ls_hd_db-filename   = lv_filename.
+          ls_hd_db-created_at = utclong_current( ).
+          MODIFY zmm_tb_gr_h FROM @ls_hd_db.
+          MODIFY zmm_tb_gr_i FROM TABLE @( CORRESPONDING #( lr_hd->items ) ).
+        ENDIF.
+
+        " Không còn item nào sống thì đừng gọi job — nó sẽ không có gì để post
+        IF iv_testmode = abap_false AND lv_has_ready = abap_true.
           DATA(lv_job_err) = schedule_job( lr_hd->gr_number ).
           IF lv_job_err IS NOT INITIAL.
             rs_result-message = COND #(
@@ -676,14 +812,12 @@ METHOD upload_excel.
           ENDIF.
         ENDIF.
 
-        READ TABLE lr_hd->items TRANSPORTING NO FIELDS WITH KEY status = gc_status_ready.
-        IF sy-subrc <> 0.
-          READ TABLE lr_hd->items INTO DATA(ls_all_failed) WITH KEY status = gc_status_error.
+        IF lv_has_ready = abap_false.
           rs_result-error_count += 1.
           rs_result-message = COND #(
               WHEN rs_result-message IS INITIAL
-              THEN |GR { lr_hd->gr_number }: { ls_all_failed-message }|
-              ELSE rs_result-message && | | && |GR { lr_hd->gr_number }: { ls_all_failed-message }| ).
+              THEN |GR { lr_hd->gr_number }: { ls_first_err-message }|
+              ELSE rs_result-message && | | && |GR { lr_hd->gr_number }: { ls_first_err-message }| ).
         ELSE.
           rs_result-success_count += 1.
         ENDIF.
@@ -712,6 +846,26 @@ METHOD upload_excel.
                                WHEN rs_result-success_count = 0
                                THEN gc_status_error
                                ELSE gc_status_ready ).
+    " Ghi lô upload
+    DATA ls_batch TYPE zih_tb_batch.
+    ls_batch-batch_id        = lv_batch_id.
+    ls_batch-process_id      = zih_cl_auth=>gc_mod_gr.
+    ls_batch-mapping_id      = iv_mapping_id.
+    ls_batch-filename        = lv_filename.
+    ls_batch-file_type       = 'XLSX'.
+    ls_batch-testmode        = iv_testmode.
+    ls_batch-status          = rs_result-status.
+    ls_batch-message         = rs_result-message.
+    ls_batch-total_count     = rs_result-total_count.
+    ls_batch-success_count   = rs_result-success_count.
+    ls_batch-error_count     = rs_result-error_count.
+    ls_batch-created_at      = utclong_current( ).
+    ls_batch-created_by      = COND #( WHEN lv_user_email IS NOT INITIAL
+                                       THEN lv_user_email
+                                       ELSE sy-uname ).
+    ls_batch-last_changed_at = ls_batch-created_at.
+    ls_batch-last_changed_by = ls_batch-created_by.
+    MODIFY zih_tb_batch FROM @ls_batch.
   ENDMETHOD.
   METHOD create_from_po.
 *    DATA(lv_auth_err) = zih_cl_auth=>check( iv_email      = iv_user_email
